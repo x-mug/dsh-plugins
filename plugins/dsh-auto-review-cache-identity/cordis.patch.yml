@@ -1,0 +1,6 @@
+- insert:
+    - id: local-auto-review-cache-identity
+      name: '@local/dsh-auto-review-cache-identity'
+      config:
+        enabled: true
+        scope: session
