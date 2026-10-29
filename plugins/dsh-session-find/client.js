@@ -1,4 +1,4 @@
-window.__ModuleLoader__.load({id:'@local/dsh-session-find',factory:(require)=>{
+window.__ModuleLoader__.load({id:'@x-mug/dsh-session-find',factory:(require)=>{
 const DEFAULT_SOURCE_MAX_BYTES = 128 * 1024 * 1024;
 const DEFAULT_SOURCE_MAX_DOCS = 100000;
 const DEFAULT_SOURCE_PAGE_SIZE = 500;
@@ -1745,7 +1745,7 @@ function createFindPlugin({ React, workerText, css, dictionaries }) {
   const h = React.createElement;
   const namespace = 'local.sessionFind';
   const kind = 'local-session-find';
-  const id = '@local/dsh-session-find';
+  const id = '@x-mug/dsh-session-find';
   const inject = ['slots', 'locale', 'sessions', 'uiSession', 'uiConversation', 'sidebarRight', 'sidebarRightTabs', 'shortcuts', 'remote', 'remote.session', 'workspaces', 'uiWorkspace'];
 
   function apply(ctx) {

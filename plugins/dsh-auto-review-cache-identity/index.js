@@ -11,7 +11,7 @@
  *
  * 只加 sessionId 一个字段，system/messages/temperature 与其余字段逐字节不变。
  *
- * @module @local/dsh-auto-review-cache-identity
+ * @module @x-mug/dsh-auto-review-cache-identity
  */
 import { createHash } from 'node:crypto'
 import { appendFileSync } from 'node:fs'

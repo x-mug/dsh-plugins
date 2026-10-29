@@ -4,10 +4,10 @@
  * 客户端插件就是一段工厂函数，React 由 loader 注入，不需要打包构建。
  * 读模型目录与读写设置都走 ctx.remote，返回的是 RPC 信封，取值前先拆。
  *
- * @module @local/dsh-auto-review-cache-identity/client
+ * @module @x-mug/dsh-auto-review-cache-identity/client
  */
 window.__ModuleLoader__.load({
-  id: '@local/dsh-auto-review-cache-identity',
+  id: '@x-mug/dsh-auto-review-cache-identity',
   factory: (require) => {
     const react = require('react')
     const h = react.createElement

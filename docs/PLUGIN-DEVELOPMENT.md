@@ -2,7 +2,7 @@
 
 把本地插件并入仓库的过程中踩到的坑，按"症状 → 根因 → 正确做法"记录。所有结论都来自本机 DSH Desktop 0.2.1-rc.3 / Cordis 4.0.5 的实测或只读源码核对，不是通用理论；升级 DSH 后需要重新验证。
 
-本文基于 [`@local/dsh-auto-review-cache-identity`](../plugins/dsh-auto-review-cache-identity/README.md) 的开发过程：宿主插件挂 `llm/stream` 补缓存身份，客户端插件在设置页加一页模型选择。
+本文基于 [`@x-mug/dsh-auto-review-cache-identity`](../plugins/dsh-auto-review-cache-identity/README.md) 的开发过程：宿主插件挂 `llm/stream` 补缓存身份，客户端插件在设置页加一页模型选择。
 
 ## 0. 一个插件包的最小形态
 
@@ -52,7 +52,7 @@ export function apply(ctx, config) { /* 挂事件、读服务 */ }
 ```js
 // client.js —— 客户端插件，整份就是一个函数
 window.__ModuleLoader__.load({
-  id: '@local/dsh-auto-review-cache-identity',
+  id: '@x-mug/dsh-auto-review-cache-identity',
   factory: (require) => {
     const react = require('react')
     const h = react.createElement
@@ -82,7 +82,7 @@ window.__ModuleLoader__.load({
 # plugins/dsh-<name>/cordis.patch.yml
 - insert:
     - id: local-auto-review-cache-identity
-      name: '@local/dsh-auto-review-cache-identity'
+      name: '@x-mug/dsh-auto-review-cache-identity'
       config:
         enabled: true
         scope: session

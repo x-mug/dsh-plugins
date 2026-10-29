@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@local/dsh-code-location-links',
+  id: '@x-mug/dsh-code-location-links',
   factory: () => {
     const prefix = 'dsh-resource://file/session/';
     const hasFilename = (name) => /\.[a-zA-Z0-9_+-]+$/.test(name) || /^(?:README|LICENSE|LICENCE|NOTICE|Dockerfile|Containerfile|Makefile|Gemfile|Rakefile)$/i.test(name);

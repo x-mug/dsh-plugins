@@ -2,7 +2,7 @@
 
 让 DeepSeek Harness Desktop 的本地文件链接支持 Windows `/C:/...` 路径和常见行列号后缀，并使用 DSH 原有文件预览器打开。
 
-版本 **1.1.0**，插件包名为 `@local/dsh-code-location-links`。兼容基线为 **DeepSeek Harness Desktop 0.2.1-rc.3 / Cordis 4.0.5**。插件依赖 DSH 内部服务钩子，其他版本需要重新验证。
+版本 **1.1.0**，插件包名为 `@x-mug/dsh-code-location-links`。兼容基线为 **DeepSeek Harness Desktop 0.2.1-rc.3 / Cordis 4.0.5**。插件依赖 DSH 内部服务钩子，其他版本需要重新验证。
 
 ## 安装
 
@@ -17,7 +17,7 @@
 
 修改源码目录不会自动更新通过压缩包安装的副本。更新时先下载新版本 `.tgz`，然后：
 
-1. 在插件页移除旧的 `@local/dsh-code-location-links`；仅停用不会解除“已安装”检查。
+1. 在插件页移除旧的 `@x-mug/dsh-code-location-links`；仅停用不会解除“已安装”检查。
 2. 按安装步骤添加新压缩包，重启或重载应用，并确认版本。
 3. 关闭旧的失败标签，再次点击链接。
 

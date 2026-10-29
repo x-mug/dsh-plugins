@@ -4,9 +4,9 @@
 
 | 插件 | 版本 | 功能 | 说明 |
 |---|---|---|---|
-| `@local/dsh-auto-review-cache-identity` | 1.0.0 | 给内置 Auto 审查补稳定缓存身份，可固定审查模型 | [使用说明](plugins/dsh-auto-review-cache-identity/README.md) |
-| `@local/dsh-code-location-links` | 1.1.0 | 修复 Windows `/C:/...` 文件链接、常见行列号后缀 | [使用说明](plugins/dsh-code-location-links/README.md) |
-| `@local/dsh-session-find` | 1.1.0 | Worker 查找、历史完整性校验、命中核对、跨会话搜索、Ctrl+F | [使用说明](plugins/dsh-session-find/README.md) · [性能记录](plugins/dsh-session-find/PERFORMANCE.md) |
+| `@x-mug/dsh-auto-review-cache-identity` | 1.0.0 | 给内置 Auto 审查补稳定缓存身份，可固定审查模型 | [使用说明](plugins/dsh-auto-review-cache-identity/README.md) |
+| `@x-mug/dsh-code-location-links` | 1.1.0 | 修复 Windows `/C:/...` 文件链接、常见行列号后缀 | [使用说明](plugins/dsh-code-location-links/README.md) |
+| `@x-mug/dsh-session-find` | 1.1.0 | Worker 查找、历史完整性校验、命中核对、跨会话搜索、Ctrl+F | [使用说明](plugins/dsh-session-find/README.md) · [性能记录](plugins/dsh-session-find/PERFORMANCE.md) |
 
 ## 安装
 

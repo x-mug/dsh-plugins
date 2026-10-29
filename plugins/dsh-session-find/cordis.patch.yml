@@ -1,4 +1,4 @@
 - insert:
     - id: local-session-find
-      name: '@local/dsh-session-find'
+      name: '@x-mug/dsh-session-find'
       config: {}
