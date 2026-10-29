@@ -12,10 +12,10 @@ function run(directory, args) {
 }
 
 run('plugins/dsh-session-find', ['build.mjs']);
-for (const plugin of ['dsh-code-location-links', 'dsh-session-find']) {
+for (const plugin of ['dsh-auto-review-cache-identity', 'dsh-code-location-links', 'dsh-session-find']) {
   const directory = `plugins/${plugin}`;
   const tests = (await readdir(path.join(root, directory, 'test'))).filter((name) => /\.test\.(cjs|mjs)$/.test(name)).sort().map((name) => `test/${name}`);
   run(directory, ['--test', '--test-isolation=none', ...tests]);
   for (const script of ['client.js', 'index.js']) run(directory, ['--check', script]);
 }
-console.log('\nBoth plugins verified.');
+console.log('\nAll plugins verified.');

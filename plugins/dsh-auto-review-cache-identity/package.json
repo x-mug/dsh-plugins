@@ -1,0 +1,29 @@
+{
+  "name": "@local/dsh-auto-review-cache-identity",
+  "version": "1.0.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/x-mug/dsh-plugins.git",
+    "directory": "plugins/dsh-auto-review-cache-identity"
+  },
+  "type": "module",
+  "description": "Give built-in Auto review calls a stable prompt-cache identity and an optional fixed review model.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js"
+  },
+  "files": ["index.js", "client.js", "cordis.patch.yml", "README.md", "test/*.test.mjs"],
+  "scripts": {
+    "test": "node --test --test-isolation=none test/*.test.mjs",
+    "check": "node --check index.js && node --check client.js"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-settings"]
+    }
+  }
+}
