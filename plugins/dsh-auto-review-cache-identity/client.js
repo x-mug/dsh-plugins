@@ -71,7 +71,7 @@ window.__ModuleLoader__.load({
     // 原生弹层默认白底，选项要自己带主题色。
     const OPTION = { background: 'var(--dsw-alias-bg-l2, #1b1c1e)', color: 'var(--dsw-alias-label-primary, #f7f8f8)' }
 
-    function Picker({ remote }) {
+    function Picker({ remote, t }) {
       const [groups, setGroups] = react.useState([])
       const [draft, setDraft] = react.useState({ reviewProvider: '', reviewModel: '' })
       const [status, setStatus] = react.useState('')
@@ -89,7 +89,7 @@ window.__ModuleLoader__.load({
             setLayers(read.layers)
             setStatus('')
           } catch (error) {
-            if (live) setStatus(`读取失败：${error?.message ?? error}`)
+            if (live) setStatus(t('readFailed',{ message: error?.message ?? error }))
           }
         }
         load()
@@ -101,9 +101,9 @@ window.__ModuleLoader__.load({
         try {
           // 写入是 CAS：expectedRevision 来自 describe，过期会被拒绝。
           await remote.settings.update(NS, draft, asForm(await remote.settings.describe())?.revision)
-          setStatus('已保存')
+          setStatus(t('saved'))
         } catch (error) {
-          setStatus(`保存失败：${error?.message ?? error}`)
+          setStatus(t('saveFailed',{ message: error?.message ?? error }))
         }
       }
 
@@ -128,36 +128,38 @@ window.__ModuleLoader__.load({
 
       return h('div', { style: S.card },
         h('h3', { style: S.title }, 'Auto 审查模型'),
-        h('p', { style: S.sub }, '固定 Auto 审查使用的模型；留空则跟随主对话。模型必须能按审查协议返回，否则审查失败会直接拒绝工具调用。'),
-        row('供应商', select({
+        h('p', { style: S.sub }, t('subtitle')),
+        row(t('provider'), select({
           style: S.field,
           value: draft.reviewProvider,
           onChange: (event) => setDraft({ reviewProvider: event.target.value, reviewModel: '' })
-        }, h('option', { value: '', style: OPTION }, '跟随主对话'),
+        }, h('option', { value: '', style: OPTION }, t('followMain')),
           groups.map((group) => h('option', { key: group.id, value: group.id, style: OPTION }, group.name ?? group.id)))),
-        row('模型', select({
+        row(t('model'), select({
           style: S.field,
           value: draft.reviewModel,
           onChange: (event) => setDraft({ ...draft, reviewModel: event.target.value })
-        }, h('option', { value: '', style: OPTION }, '跟随主对话'),
+        }, h('option', { value: '', style: OPTION }, t('followMain')),
           models.map((model) => h('option', { key: model.id, value: model.id, style: OPTION }, model.name ?? model.id)))),
         h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', paddingTop: '2px' } },
-          h('button', { type: 'button', style: S.button, onClick: save }, '保存'),
+          h('button', { type: 'button', style: S.button, onClick: save }, t('save')),
           h('span', { style: S.status }, status)),
         h('details', { style: S.details },
-          h('summary', { style: S.summary }, '设置原始信息'),
+          h('summary', { style: S.summary }, t('raw')),
           h('pre', { style: S.pre }, pretty(layers))))
     }
 
-    const inject = ['slots', 'remote', 'remote.session', 'remote.settings']
+    const inject = ['slots', 'locale', 'remote', 'remote.session', 'remote.settings']
 
     function apply(ctx) {
+      ctx.effect(() => ctx.locale.register('@x-mug/dsh-auto-review-cache-identity', dictionaries));
+      const t = ctx.locale.bind('@x-mug/dsh-auto-review-cache-identity');
       ctx.slots.inject('settings.section', () => ctx.slots.register({
         name: 'settings.section',
         id: 'auto-review-cache-identity',
         order: 60,
         label: () => 'Auto 审查模型',
-        inject: () => ({ remote: ctx.remote })
+        inject: () => ({ remote: ctx.remote, t })
       }, Picker), 'auto-review-cache-identity: settings section')
     }
 
