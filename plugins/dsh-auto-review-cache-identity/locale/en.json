@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "title": "Auto review cache identity",
+    "description": "Give built-in Auto review calls a stable prompt-cache identity, and optionally run them on a fixed model."
+  },
+  "title": "Auto review cache identity",
+  "subtitle": "Pin the model Auto review uses; leave empty to follow the main conversation.",
+  "provider": "Provider",
+  "model": "Model",
+  "followMain": "Follow main conversation",
+  "save": "Save",
+  "saved": "Saved",
+  "raw": "Raw details",
+  "readFailed": "Read failed: {message}",
+  "saveFailed": "Save failed: {message}"
+}

@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "title": "Auto 审查缓存身份",
+    "description": "给内置 Auto 审查补稳定缓存身份，并可固定审查使用的模型。"
+  },
+  "title": "Auto 审查缓存身份",
+  "subtitle": "固定 Auto 审查使用的模型；留空则跟随主对话。",
+  "provider": "供应商",
+  "model": "模型",
+  "followMain": "跟随主对话",
+  "save": "保存",
+  "saved": "已保存",
+  "raw": "原始信息",
+  "readFailed": "读取失败：{message}",
+  "saveFailed": "保存失败：{message}"
+}
