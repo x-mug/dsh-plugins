@@ -68,4 +68,4 @@ npm pack --ignore-scripts --pack-destination ../../dist
 - 插件都使用 DSH 现有客户端服务和既有能力，未修改 DSH 安装文件。
 - 链接插件依赖 Cordis `internal/get`，会话查找的消息跳转依赖 rc.3 的 Chat DOM 锚点，审查身份插件依赖 rc.3 的 `llm/stream` waterfall、`agents.currentInitiator()` 与设置页槽位。升级 DSH 后需要重新验证。
 - 会话查找的性能记录来自合成语料的本机测试，不等同于浏览器端到端延迟，也不构成与其他编辑器的性能对标。
-- 自动测试、真实 Cordis / 快捷键注册器集成和当前 DSH Web 页面的按键、搜索、高亮与跨会话跳转已验收；审查身份插件只有离线自动化验证（23 项）与语法检查，真实应用中的设置分区、模型下拉与保存尚未验收。链接插件与会话查找的验证范围见 [验证记录](docs/VALIDATION.md)，本次新增插件的验证范围见其[使用说明](plugins/dsh-auto-review-cache-identity/README.md)。
+- 自动测试、真实 Cordis / 快捷键注册器集成和当前 DSH Web 页面的按键、搜索、高亮与跨会话跳转已验收；审查身份插件另有离线自动化验证（23 项）；设置分区、模型下拉、保存与热切换已在真实 DSH 桌面端验收：连续切换 `magpie-responses/codex/gpt-6.1-terra`、清空、`magpie/group/fasttranslate` 后，profile 补丁值与 trace 记录的实际改写路由逐一一致，切换在秒级生效且无需重启。链接插件与会话查找的验证范围见 [验证记录](docs/VALIDATION.md)，本次新增插件的验证范围见其[使用说明](plugins/dsh-auto-review-cache-identity/README.md)。
