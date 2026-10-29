@@ -1,0 +1,10 @@
+{
+  "meta": { "title": "Find in conversation", "description": "Find text throughout the current conversation with background search, match navigation and highlighting." },
+  "title": "Find in conversation", "open": "Find in current conversation", "openTitle": "Find in conversation · Desktop Ctrl+F / Web Ctrl+Alt+F",
+  "placeholder": "Find in this conversation…", "matchCase": "Match case", "wholeWord": "Whole word", "regex": "Regular expression", "includeReasoning": "Include reasoning", "reasoning": "Reasoning", "user": "You", "assistant": "Assistant",
+  "previous": "Previous match · Shift+Enter", "next": "Next match · Enter", "previousPage": "Previous page", "nextPage": "Next page", "pages": "Result pages",
+  "indexing": "Reading history · {count} text blocks", "ready": "Complete history · {count} text blocks", "partial": "Partial history · see the reason", "waiting": "Waiting for session history", "searching": "Searching…", "hint": "Enter next · Shift+Enter previous",
+  "refresh": "Reload history", "noMatches": "No matches", "instructions": "Find words or code fragments throughout this conversation.", "locating": "Loading and locating the historical message…", "capped": "More than 100,000 matches. The first 100,000 are shown; refine the query.",
+  "scope": "Searches committed user input and assistant text; reasoning is optional. Streaming replies join when committed. Tools, attachments and injected context are excluded.",
+  "unavailable": "No conversation is available to search"
+}

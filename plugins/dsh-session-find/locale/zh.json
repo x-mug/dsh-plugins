@@ -1,0 +1,10 @@
+{
+  "meta": { "title": "会话内查找", "description": "在当前会话的完整历史中查找文字，后台线程搜索，逐个导航并高亮命中。" },
+  "title": "会话内查找", "open": "查找当前会话", "openTitle": "查找当前会话 · Desktop Ctrl+F / Web Ctrl+Alt+F",
+  "placeholder": "查找当前会话…", "matchCase": "区分大小写", "wholeWord": "全字匹配", "regex": "使用正则表达式", "includeReasoning": "包括思考文字", "reasoning": "思考", "user": "你", "assistant": "助手",
+  "previous": "上一个命中 · Shift+Enter", "next": "下一个命中 · Enter", "previousPage": "上一页", "nextPage": "下一页", "pages": "结果分页",
+  "indexing": "正在读取历史 · {count} 个文本块", "ready": "完整历史 · {count} 个文本块", "partial": "仅部分历史 · 请查看原因", "waiting": "等待会话历史", "searching": "查找中…", "hint": "Enter 下一个 · Shift+Enter 上一个",
+  "refresh": "重新读取", "noMatches": "没有匹配文字", "instructions": "输入关键字查找当前会话。中文和代码片段可直接搜索。", "locating": "正在加载并定位历史消息…", "capped": "命中超过 100,000 处，当前仅显示前 100,000 处，请缩小查询。",
+  "scope": "搜索已完成的用户输入与助手文字；可包括思考。正在生成的回复完成后纳入。工具、附件和注入上下文不在范围内。",
+  "unavailable": "当前没有可查找的会话"
+}

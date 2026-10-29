@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Code location links",
+    "description": "Normalize Windows /C:/ paths, backslashes and source location suffixes in DSH's existing file preview."
+  }
+}

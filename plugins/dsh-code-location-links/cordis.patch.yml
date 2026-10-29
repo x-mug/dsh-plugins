@@ -1,0 +1,4 @@
+- insert:
+    - id: local-code-location-links
+      name: '@local/dsh-code-location-links'
+      config: {}

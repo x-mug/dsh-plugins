@@ -1,0 +1,3 @@
+node_modules/
+test/worker-built.js
+*.tgz

@@ -1,0 +1,31 @@
+{
+  "name": "@local/dsh-code-location-links",
+  "version": "1.1.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/x-mug/dsh-plugins.git",
+    "directory": "plugins/dsh-code-location-links"
+  },
+  "type": "module",
+  "description": "Normalize Windows file paths and source location links in DSH's existing file preview.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["index.js", "client.js", "cordis.patch.yml", "locale/*.json", "icon.svg", "README.md", "test/*.test.cjs"],
+  "scripts": {
+    "test": "node --test --test-isolation=none test/*.test.cjs",
+    "check": "node --check client.js && node --check index.js && node --check test/locations.test.cjs && node --check test/routing.test.cjs"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-sidebar-right"]
+    }
+  }
+}

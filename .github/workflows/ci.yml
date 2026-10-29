@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build and verify both plugins
+        run: node scripts/verify.mjs
+      - name: Check generated client is committed
+        run: git diff --exit-code -- plugins/dsh-session-find/client.js
+      - name: Pack link plugin
+        working-directory: plugins/dsh-code-location-links
+        run: npm pack --dry-run --ignore-scripts
+      - name: Pack conversation find plugin
+        working-directory: plugins/dsh-session-find
+        run: npm pack --dry-run --ignore-scripts

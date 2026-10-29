@@ -1,0 +1,12 @@
+{
+  "name": "dsh-plugins",
+  "private": true,
+  "type": "module",
+  "description": "DSH 插件仓库：本地文件链接修复与当前会话内查找。",
+  "scripts": {
+    "test": "node scripts/verify.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
