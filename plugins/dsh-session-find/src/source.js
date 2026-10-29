@@ -13,7 +13,37 @@ function isSequence(value) {
 }
 
 function durableEvent(entry) {
-  return entry?.type === 'event' && isSequence(entry.event?.seq) ? entry.event : null;
+  const event = entry?.event;
+  return entry?.type === 'event' && isSequence(event?.seq) &&
+    typeof event.type === 'string' && event.type.length > 0 ? event : null;
+}
+
+function auditHistoryPage(page, expectedLast) {
+  if (!Array.isArray(page?.records) || typeof page.hasMore !== 'boolean') {
+    throw sourceError('SOURCE_PAGE_INVALID', 'The history page has no valid records and hasMore fields.');
+  }
+  if (page.records.length === 0) {
+    if (expectedLast !== -1 || page.hasMore) {
+      throw sourceError('SOURCE_HISTORY_GAP', 'History ended before every durable event was read.');
+    }
+    return { first: 0, count: 0 };
+  }
+  const first = durableEvent(page.records[0])?.seq;
+  if (first === undefined || first > expectedLast) {
+    throw sourceError('SOURCE_HISTORY_GAP', 'The history page starts outside its requested range.');
+  }
+  for (let index = 0; index < page.records.length; index += 1) {
+    if (durableEvent(page.records[index])?.seq !== first + index) {
+      throw sourceError('SOURCE_HISTORY_GAP', 'History has a missing, repeated, or unordered durable event.');
+    }
+  }
+  if (first + page.records.length - 1 !== expectedLast) {
+    throw sourceError('SOURCE_HISTORY_GAP', 'The history page does not reach the preceding page or opening cursor.');
+  }
+  if (page.hasMore !== (first > 0)) {
+    throw sourceError('SOURCE_HISTORY_GAP', 'History exhaustion disagrees with its zero-based durable sequence.');
+  }
+  return { first, count: page.records.length };
 }
 
 export function extractSearchDocuments(entry) {
@@ -107,6 +137,12 @@ export function createSessionSource(options) {
   let disposed = false;
   let generation = 0;
   let controller = null;
+  let hasBaseline = false;
+  let historyComplete = false;
+  let authoritativeFrom = Infinity;
+  let authoritativeThrough = -1;
+  let liveThrough = -1;
+  const pendingLive = new Set();
   let unsubscribeEvents = null;
   let unsubscribeSession = null;
   let loadPromise = Promise.resolve();
@@ -125,6 +161,10 @@ export function createSessionSource(options) {
     pages: 0,
     throughSeq: -1,
     beforeSeq: null,
+    authority: 'projections',
+    eventsRead: 0,
+    coverageThroughSeq: -1,
+    liveThroughSeq: -1,
     error: null,
     errorCode: null,
     reason: 'idle',
@@ -147,28 +187,56 @@ export function createSessionSource(options) {
     for (let offset = 0; offset < ids.length; offset += 500) onRemove(ids.slice(offset, offset + 500));
   }
 
+  function stopTransport() {
+    controller?.abort();
+  }
+
   function fail(error, reason) {
     publish({ loading: false, complete: false, partial: true, reason, ...errorDetails(error) });
   }
 
-  function addEntries(entries) {
+  function failRead(error, reason) {
+    stopTransport();
+    fail(error, reason);
+  }
+
+  function addEntries(entries, authoritative = false) {
     let added = [];
     let limitError = null;
     for (const entry of entries) {
       const event = durableEvent(entry);
-      if (!event || indexed.has(event.seq)) continue;
+      if (!event) continue;
+      const previous = indexed.get(event.seq);
+      if (!authoritative && (previous ||
+          (event.seq >= authoritativeFrom && event.seq <= authoritativeThrough))) continue;
       const documents = extractSearchDocuments(entry);
-      if (documents.length === 0) continue;
+      if (previous) {
+        let previousBytes = 0;
+        for (const document of previous) previousBytes += document.bytes;
+        indexed.delete(event.seq);
+        state = {
+          ...state, count: state.count - previous.length,
+          messageCount: state.messageCount - 1, bytes: state.bytes - previousBytes,
+        };
+      }
       let bytes = 0;
       for (const document of documents) bytes += document.text.length * 2;
+      let error = null;
       if (bytes > maxBytes - state.bytes) {
-        limitError ??= sourceError('SOURCE_MEMORY_LIMIT', `Search text exceeds the ${maxBytes} byte UTF-16 budget; only part of this session is indexed.`);
+        error = sourceError('SOURCE_MEMORY_LIMIT', `Search text exceeds the ${maxBytes} byte UTF-16 budget; only part of this session is indexed.`);
+      } else if (documents.length > maxDocs - state.count) {
+        error = sourceError('SOURCE_DOCUMENT_LIMIT', `Search exceeds the ${maxDocs} document budget; only part of this session is indexed.`);
+      }
+      if (previous) {
+        const nextIds = error ? new Set() : new Set(documents.map(document => document.id));
+        const removed = previous.filter(document => !nextIds.has(document.id)).map(document => document.id);
+        for (let offset = 0; offset < removed.length; offset += 500) onRemove(removed.slice(offset, offset + 500));
+      }
+      if (error) {
+        limitError ??= error;
         continue;
       }
-      if (documents.length > maxDocs - state.count) {
-        limitError ??= sourceError('SOURCE_DOCUMENT_LIMIT', `Search exceeds the ${maxDocs} document budget; only part of this session is indexed.`);
-        continue;
-      }
+      if (documents.length === 0) continue;
       indexed.set(event.seq, documents.map(document => ({ id: document.id, bytes: document.text.length * 2 })));
       state = {
         ...state,
@@ -186,7 +254,7 @@ export function createSessionSource(options) {
     }
     if (added.length > 0) onUpsert(added);
     if (limitError) {
-      controller?.abort();
+      stopTransport();
       if (state.errorCode !== 'SOURCE_MEMORY_LIMIT' && state.errorCode !== 'SOURCE_DOCUMENT_LIMIT') {
         fail(limitError, limitError.code === 'SOURCE_MEMORY_LIMIT' ? 'memory-limit' : 'document-limit');
       }
@@ -206,25 +274,10 @@ export function createSessionSource(options) {
     return { snapshot, nextAddress };
   }
 
-  function validatePage(result, throughSeq, beforeSeq) {
+  function unwrapPage(result) {
     if (!result || typeof result.ok !== 'boolean') throw sourceError('SOURCE_PAGE_INVALID', 'The session.page RPC returned an invalid result.');
     if (!result.ok) throw result.error ?? sourceError('SOURCE_READ_FAILED', 'Session history could not be read.');
-    const page = result.value;
-    if (!Array.isArray(page?.records) || typeof page.hasMore !== 'boolean') {
-      throw sourceError('SOURCE_PAGE_INVALID', 'The session.page RPC returned an invalid history page.');
-    }
-    let previous = -1;
-    for (const entry of page.records) {
-      const event = durableEvent(entry);
-      if (!event || event.seq <= previous || event.seq > throughSeq || event.seq >= beforeSeq) {
-        throw sourceError('SOURCE_PAGE_INVALID', 'Session history was not chronological within the requested cursor.');
-      }
-      previous = event.seq;
-    }
-    if (page.hasMore && page.records.length === 0) {
-      throw sourceError('SOURCE_PAGE_STALLED', 'Session history paging made no progress.');
-    }
-    return page;
+    return result.value;
   }
 
   function readWindow() {
@@ -236,7 +289,7 @@ export function createSessionSource(options) {
     return window;
   }
 
-  async function readPage(request, signal) {
+  async function pending(operation, signal) {
     if (signal.aborted) return null;
     let stop;
     const aborted = new Promise(resolve => {
@@ -244,65 +297,116 @@ export function createSessionSource(options) {
       signal.addEventListener('abort', stop, { once: true });
     });
     try {
-      return await Promise.race([remote.session.page(request, signal), aborted]);
+      return await Promise.race([Promise.resolve().then(() => signal.aborted ? null : operation()), aborted]);
     } finally {
       signal.removeEventListener('abort', stop);
     }
   }
 
-  async function readHistory(window, pass, signal) {
-    const { snapshot, nextAddress } = sessionSnapshot();
-    address = nextAddress;
-    let head = Infinity;
-    let tail = -1;
-    for (const entry of window.entries) {
+  function isCurrent(pass, signal) {
+    return pass === generation && !signal.aborted && !disposed;
+  }
+
+  function checkAddress(expected) {
+    const current = sessionSnapshot();
+    if (sameAddress(expected, current.nextAddress)) return true;
+    restart('session-address');
+    return false;
+  }
+
+  function observeLive(entries) {
+    for (const entry of entries) {
+      if (entry?.type === 'transient') continue;
       const event = durableEvent(entry);
-      if (!event) continue;
-      head = Math.min(head, event.seq);
-      tail = Math.max(tail, event.seq);
+      if (!event) throw sourceError('SOURCE_HISTORY_GAP', 'The session feed contains an invalid durable event.');
+      if (event.seq > liveThrough) pendingLive.add(event.seq);
     }
-    publish({ throughSeq: tail, beforeSeq: head === Infinity ? null : head });
+    if (!hasBaseline) return;
+    for (const seq of pendingLive) if (seq <= liveThrough) pendingLive.delete(seq);
+    while (pendingLive.delete(liveThrough + 1)) liveThrough += 1;
+    state = { ...state, liveThroughSeq: liveThrough };
+    if (historyComplete && (state.error === null || state.errorCode === 'SOURCE_LIVE_GAP')) {
+      publish({
+        complete: pendingLive.size === 0,
+        partial: pendingLive.size > 0,
+        reason: pendingLive.size > 0 ? 'waiting-for-durable-gap' : 'complete',
+        error: pendingLive.size > 0 ? 'A durable event has not reached the session feed yet; new-message coverage is incomplete.' : null,
+        errorCode: pendingLive.size > 0 ? 'SOURCE_LIVE_GAP' : null,
+      });
+    }
+  }
+
+  async function readHistory(window, pass, signal) {
+    const { nextAddress } = sessionSnapshot();
+    address = nextAddress;
+    observeLive(window.entries);
     if (!addEntries(window.entries)) return;
-    if (tail < 0 && snapshot.openState !== undefined && snapshot.openState !== 'open') {
-      publish({ loading: true, reason: 'waiting-for-session' });
-      return;
+    if (typeof remote.session.projections !== 'function') {
+      throw sourceError('SOURCE_UNSUPPORTED_HOST', 'This host has no authorized session.projections API to establish a durable history cursor.');
     }
-    if (window.hasMore && tail < 0) {
-      throw sourceError('SOURCE_CURSOR_UNAVAILABLE', 'Older history exists, but the durable session cursor is unavailable.');
+    // The host publishes sequenced projections at the synchronous durable log cut.
+    const result = await pending(() => remote.session.projections({ sessionId: binding.sessionId }, signal), signal);
+    if (!isCurrent(pass, signal) || !checkAddress(nextAddress)) return;
+    if (!result || typeof result.ok !== 'boolean') {
+      throw sourceError('SOURCE_CURSOR_INVALID', 'The session.projections RPC returned an invalid result.');
     }
-    let hasMore = window.hasMore;
-    let beforeSeq = head === Infinity ? 0 : head;
-    while (hasMore && pass === generation && !signal.aborted) {
-      const result = await readPage({
-        address: { ...nextAddress },
-        throughSeq: tail,
-        beforeSeq,
-        maxMessages: pageSize,
-      }, signal);
-      if (pass !== generation || signal.aborted || disposed) return;
-      const current = sessionSnapshot();
-      if (!sameAddress(nextAddress, current.nextAddress)) {
-        restart('session-address');
-        return;
-      }
-      const page = validatePage(result, tail, beforeSeq);
-      if (page.records.length > 0) beforeSeq = page.records[0].event.seq;
-      hasMore = page.hasMore;
-      state = { ...state, pages: state.pages + 1, beforeSeq };
-      if (!addEntries(page.records)) return;
+    if (!result.ok) throw result.error ?? sourceError('SOURCE_READ_FAILED', 'The session history cursor could not be read.');
+    const projection = result.value;
+    if (projection?.kind !== 'sequenced') {
+      throw sourceError('SOURCE_CURSOR_UNAVAILABLE', 'The host has no exact durable history cursor for this session.');
+    }
+    const throughSeq = projection.asOfSeq;
+    if ((!isSequence(throughSeq) && throughSeq !== -1) || throughSeq === Number.MAX_SAFE_INTEGER) {
+      throw sourceError('SOURCE_CURSOR_INVALID', 'The durable history cursor is invalid.');
+    }
+    liveThrough = throughSeq;
+    hasBaseline = true;
+    observeLive([]);
+    publish({ throughSeq, liveThroughSeq: liveThrough });
+    let beforeSeq;
+    let expectedLast = throughSeq;
+    while (isCurrent(pass, signal)) {
+      const response = await pending(() => remote.session.page({
+        address: { ...nextAddress }, throughSeq,
+        ...(beforeSeq === undefined ? {} : { beforeSeq }), maxMessages: pageSize,
+      }, signal), signal);
+      if (!isCurrent(pass, signal) || !checkAddress(nextAddress)) return;
+      const page = unwrapPage(response);
+      const proof = auditHistoryPage(page, expectedLast);
+      authoritativeFrom = proof.first;
+      authoritativeThrough = throughSeq;
+      state = {
+        ...state, pages: state.pages + 1,
+        eventsRead: state.eventsRead + proof.count, beforeSeq: proof.first,
+      };
+      if (!addEntries(page.records, true)) return;
       publish();
+      if (proof.first === 0) break;
+      expectedLast = proof.first - 1;
+      beforeSeq = proof.first;
     }
-    if (pass === generation && !signal.aborted && !disposed) {
-      publish({ loading: false, complete: true, partial: false, reason: 'complete' });
+    if (isCurrent(pass, signal)) {
+      if (state.eventsRead !== throughSeq + 1) {
+        throw sourceError('SOURCE_HISTORY_GAP', 'History coverage does not span every durable event from zero through the cursor.');
+      }
+      historyComplete = true;
+      publish({ loading: false, coverageThroughSeq: throughSeq });
+      observeLive([]);
     }
   }
 
   function restart(reason) {
     if (disposed) return;
-    controller?.abort();
+    stopTransport();
     const pass = ++generation;
     controller = new AbortController();
     const signal = controller.signal;
+    hasBaseline = false;
+    historyComplete = false;
+    authoritativeFrom = Infinity;
+    authoritativeThrough = -1;
+    liveThrough = -1;
+    pendingLive.clear();
     clearDocuments();
     publish({
       loading: true,
@@ -311,6 +415,9 @@ export function createSessionSource(options) {
       pages: 0,
       throughSeq: -1,
       beforeSeq: null,
+      eventsRead: 0,
+      coverageThroughSeq: -1,
+      liveThroughSeq: -1,
       error: null,
       errorCode: null,
       reason: 'loading',
@@ -322,7 +429,7 @@ export function createSessionSource(options) {
       lastWindow = window;
       await readHistory(window, pass, signal);
     }).catch(error => {
-      if (pass === generation && !signal.aborted && !disposed) fail(error, 'read-error');
+      if (isCurrent(pass, signal)) failRead(error, 'read-error');
     });
   }
 
@@ -345,9 +452,13 @@ export function createSessionSource(options) {
       }
       const change = window.change;
       if (change?.kind === 'append' || change?.kind === 'prepend') {
+        observeLive(change.entries ?? []);
         addEntries(change.entries ?? []);
       } else if (change?.kind === 'settle-assistant') {
-        if (change.entry) addEntries([change.entry]);
+        if (change.entry) {
+          observeLive([change.entry]);
+          addEntries([change.entry]);
+        }
       } else {
         restart('event-change');
         return;
@@ -366,7 +477,6 @@ export function createSessionSource(options) {
     try {
       const current = sessionSnapshot();
       if (!sameAddress(address, current.nextAddress) ||
-          (state.reason === 'waiting-for-session' && current.snapshot.openState === 'open') ||
           (state.reason === 'session-error' && current.snapshot.openState === 'open')) {
         restart('session-ready');
       }

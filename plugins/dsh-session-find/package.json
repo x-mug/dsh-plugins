@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-session-find",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "repository": {
     "type": "git",
@@ -8,7 +8,7 @@
     "directory": "plugins/dsh-session-find"
   },
   "type": "module",
-  "description": "Responsive find in the current DSH conversation, including paged history.",
+  "description": "Worker-powered search with verified history, exact navigation checks and cross-session search.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -26,7 +26,7 @@
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-chat", "@deepseek-ai/dsh-client-ui-sidebar-right", "@deepseek-ai/dsh-client-shortcuts"]
+      "inject": ["@deepseek-ai/dsh-client-ui-chat", "@deepseek-ai/dsh-client-ui-sidebar-right", "@deepseek-ai/dsh-client-shortcuts", "@deepseek-ai/dsh-client-ui-workspace"]
     }
   }
 }

@@ -32,6 +32,15 @@ function page(records, hasMore = false) {
   return { ok: true, value: { records, hasMore } };
 }
 
+function dense(first, last, entries = []) {
+  const bySequence = new Map(entries.map(entry => [entry.event.seq, entry]));
+  return Array.from({ length: Math.max(0, last - first + 1) }, (_, index) => bySequence.get(first + index) ?? frame(first + index));
+}
+
+async function flush() {
+  for (let index = 0; index < 24; index += 1) await Promise.resolve();
+}
+
 function deferred() {
   let resolve;
   let reject;
@@ -39,12 +48,16 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function fixture(entries, hasMore = false, pageHandler = () => page([]), session = {}) {
+function fixture(entries, hasMore = false, pageHandler, session = {}) {
   let window = { entries, hasMore, revision: 1, change: { kind: 'replace', entries } };
   let snapshot = { sessionId: 'current', subagent: null, openState: 'open', removed: false, ...session };
   const eventListeners = new Set();
   const sessionListeners = new Set();
   const calls = [];
+  const projectionCalls = [];
+  let projectionHandler = () => ({ ok: true, value: {
+    kind: 'sequenced', asOfSeq: window.entries.filter(entry => entry.type === 'event').at(-1)?.event.seq ?? -1, values: {},
+  } });
   const upserts = [];
   const removals = [];
   const statuses = [];
@@ -61,12 +74,22 @@ function fixture(entries, hasMore = false, pageHandler = () => page([]), session
       loadOlder() { assert.fail('The source must not render older messages.'); },
     },
   };
-  const remote = { session: { page(request, signal) {
-    calls.push({ request, signal });
-    return pageHandler(request, signal, calls.length);
-  } } };
+  const remote = { session: {
+    projections(request, signal) {
+      projectionCalls.push({ request, signal });
+      return projectionHandler(request, signal, projectionCalls.length);
+    },
+    page(request, signal) {
+      calls.push({ request, signal });
+      if (pageHandler) return pageHandler(request, signal, calls.length);
+      const last = Math.min(request.throughSeq, (request.beforeSeq ?? request.throughSeq + 1) - 1);
+      return page(dense(0, last, window.entries));
+    },
+    follow() { assert.fail('Cold reads must not open follow or promote an Agent.'); },
+  } };
   return {
-    binding, remote, calls, docs, upserts, removals, statuses, eventListeners, sessionListeners,
+    binding, remote, calls, projectionCalls, docs, upserts, removals, statuses, eventListeners, sessionListeners,
+    projections(handler) { projectionHandler = handler; },
     options: {
       binding, remote,
       onUpsert(batch) { upserts.push(batch); for (const doc of batch) docs.set(doc.id, doc); },
@@ -145,24 +168,31 @@ test('transient and malformed records never enter the index', () => {
 test('reads cold history through the authorized RPC using a fixed durable cut', async () => {
   const firstPage = deferred();
   const f = fixture([user(6, 'tail user'), assistant(7, 'tail assistant'), frame(8)], true,
-    (_request, _signal, call) => call === 1 ? firstPage.promise : page([user(0, 'oldest'), frame(1)], false));
+    (_request, _signal, call) => call === 1 ? page(dense(6, 8, [user(6, 'tail user'), assistant(7, 'tail assistant')]), true) :
+      call === 2 ? firstPage.promise : page([user(0, 'oldest'), frame(1)], false));
   const source = createSessionSource(f.options);
   const loading = source.start();
-  await Promise.resolve();
+  await flush();
+  assert.deepEqual(f.projectionCalls[0].request, { sessionId: 'current' });
   assert.deepEqual(f.calls[0].request, {
-    address: { kind: 'session', sessionId: 'current' }, throughSeq: 8, beforeSeq: 6, maxMessages: 500,
+    address: { kind: 'session', sessionId: 'current' }, throughSeq: 8, maxMessages: 500,
   });
+  assert.equal(f.calls[1].request.beforeSeq, 6);
   f.change({ kind: 'append', entries: [assistant(9, 'live while paging')] });
   firstPage.resolve(page([frame(2), user(3, 'older'), assistant(4, 'older answer'), frame(5)], true));
   await loading;
-  assert.equal(f.calls.length, 2);
-  assert.equal(f.calls[1].request.throughSeq, 8);
-  assert.equal(f.calls[1].request.beforeSeq, 2);
+  assert.equal(f.calls.length, 3);
+  assert.equal(f.calls[2].request.throughSeq, 8);
+  assert.equal(f.calls[2].request.beforeSeq, 2);
   assert.deepEqual(new Set(texts(f)), new Set(['tail user', 'tail assistant', 'live while paging', 'older', 'older answer', 'oldest']));
   const status = source.getStatus();
   assert.equal(status.complete, true);
   assert.equal(status.partial, false);
-  assert.equal(status.pages, 2);
+  assert.equal(status.pages, 3);
+  assert.equal(status.eventsRead, 9);
+  assert.equal(status.coverageThroughSeq, 8);
+  assert.equal(status.liveThroughSeq, 9);
+  assert.equal(status.authority, 'projections');
   assert.equal(status.count, 6);
   assert.equal(status.bytes, texts(f).reduce((sum, text) => sum + text.length * 2, 0));
   assert.equal(status.maxBytes, DEFAULT_SOURCE_MAX_BYTES);
@@ -177,7 +207,7 @@ test('cold page extraction excludes replacement and nonhuman history content', a
   replacement.event.surfaceOp = { op: 'replace', startSeq: 0, endSeq: 2 };
   const f = fixture([assistant(6, 'latest')], true, () => page([
     user(0, 'original human'), assistant(1, 'original answer'), user(2, 'injected secret', { kind: 'subagent' }),
-    replacement, event(4, 'tool/call', { arguments: 'tool secret' }), frame(5),
+    replacement, event(4, 'tool/call', { arguments: 'tool secret' }), frame(5), assistant(6, 'latest'),
   ]));
   const source = createSessionSource(f.options);
   await source.start();
@@ -196,28 +226,28 @@ test('append prepend and settle-assistant deduplicate durable sequence numbers',
   f.change({ kind: 'prepend', entries: [user(0, 'initial'), durable] }, undefined, false);
   assert.deepEqual(texts(f), ['initial', 'settled text']);
   assert.equal(source.getStatus().count, 2);
-  assert.equal(f.calls.length, 0);
-  assert.equal(f.upserts.length, 2);
+  assert.equal(f.calls.length, 1);
+  assert.equal(f.upserts.length, 3);
   source.dispose();
 });
 
 test('replace aborts stale paging and rereads all independent history without leaks', async () => {
   const oldPage = deferred();
   const f = fixture([user(5, 'stale tail')], true,
-    (_request, _signal, call) => call === 1 ? oldPage.promise : page([user(0, 'new cold history')], false));
+    (_request, _signal, call) => call === 1 ? oldPage.promise : page(dense(0, 8, [user(0, 'new cold history'), assistant(8, 'replacement tail')]), false));
   const source = createSessionSource(f.options);
   const initial = source.start();
-  await Promise.resolve();
+  await flush();
   const oldSignal = f.calls[0].signal;
   f.change({ kind: 'replace', entries: [assistant(8, 'replacement tail')] }, undefined, true);
-  await Promise.resolve();
+  await flush();
   assert.equal(oldSignal.aborted, true);
   oldPage.resolve(page([user(1, 'stale cold history')], false));
   await initial;
   assert.deepEqual(new Set(texts(f)), new Set(['replacement tail', 'new cold history']));
   assert.ok(f.removals.flat().includes('5:0'));
   assert.equal(f.calls[1].request.throughSeq, 8);
-  assert.equal(f.calls[1].request.beforeSeq, 8);
+  assert.equal(f.calls[1].request.beforeSeq, undefined);
   assert.equal(source.getStatus().reloadReason, 'replace');
   source.dispose();
 });
@@ -227,7 +257,7 @@ test('dispose aborts in-flight work and detaches all subscriptions', async () =>
   const f = fixture([user(5, 'tail')], true, () => pending.promise);
   const source = createSessionSource(f.options);
   const loading = source.start();
-  await Promise.resolve();
+  await flush();
   source.dispose();
   assert.equal(f.calls[0].signal.aborted, true);
   assert.equal(f.eventListeners.size, 0);
@@ -244,7 +274,7 @@ test('dispose aborts in-flight work and detaches all subscriptions', async () =>
 });
 
 test('uses the direct subagent address from the current session snapshot', async () => {
-  const f = fixture([assistant(5, 'subagent')], true, () => page([]), {
+  const f = fixture([assistant(5, 'subagent')], true, undefined, {
     subagent: { address: { parentSessionId: 'parent', childSessionId: 'current', mode: 'continuable' } },
   });
   const source = createSessionSource(f.options);
@@ -287,17 +317,17 @@ test('paging that does not move backwards is rejected', async t => {
       const f = fixture([user(5, 'known')], true, () => invalid);
       const source = createSessionSource(f.options);
       await source.start();
-      assert.equal(f.calls.length, 1);
+      assert.ok(f.calls.length <= 2);
       assert.equal(source.getStatus().complete, false);
       assert.equal(source.getStatus().partial, true);
-      assert.match(source.getStatus().errorCode, /^SOURCE_PAGE_/);
+      assert.match(source.getStatus().errorCode, /^SOURCE_(PAGE_|HISTORY_GAP)/);
       source.dispose();
     });
   }
 });
 
 test('the UTF-16 budget excludes an entire oversized message and marks partial', async () => {
-  const f = fixture([user(5, '😀')], true, () => page([user(0, 'abcd')]));
+  const f = fixture([user(5, '😀')], true, () => page(dense(0, 5, [user(0, 'abcd'), user(5, '😀')])));
   const source = createSessionSource({ ...f.options, maxBytes: 10 });
   await source.start();
   assert.deepEqual(texts(f), ['😀']);
@@ -322,17 +352,16 @@ test('an oversized current window avoids cold-history RPC and remains responsive
   source.dispose();
 });
 
-test('a cold empty window waits for an open session instead of claiming a complete index', async () => {
-  const f = fixture([], false, () => page([]), { openState: 'cold' });
+test('a cold empty UI window reads durable history without opening the Session', async () => {
+  const f = fixture([], false, () => page(dense(0, 2, [user(0, 'cold prompt'), assistant(2, 'cold answer')])), { openState: 'cold' });
+  f.projections(() => ({ ok: true, value: { kind: 'sequenced', asOfSeq: 2, values: {} } }));
+  f.binding.session.open = () => assert.fail('Search must not activate the Session.');
   const source = createSessionSource(f.options);
   await source.start();
-  assert.equal(source.getStatus().reason, 'waiting-for-session');
-  assert.equal(source.getStatus().loading, true);
-  assert.equal(source.getStatus().complete, false);
-  f.session({ openState: 'open' });
-  await source.start();
+  assert.deepEqual(texts(f), ['cold prompt', 'cold answer']);
   assert.equal(source.getStatus().complete, true);
-  assert.equal(f.calls.length, 0);
+  assert.equal(source.getStatus().eventsRead, 3);
+  assert.equal(f.calls.length, 1);
   source.dispose();
 });
 
@@ -342,7 +371,7 @@ test('refresh and large callback batches preserve the public source contract', a
   const source = createSessionSource(f.options);
   await Promise.all([source.start(), source.start()]);
   assert.equal(source.getStatus().count, 1002);
-  assert.deepEqual(f.upserts.map(batch => batch.length), [500, 500, 2]);
+  assert.deepEqual(f.upserts.map(batch => batch.length), [500, 500, 2, 500, 500, 2]);
   await source.refresh();
   assert.equal(source.getStatus().count, 1002);
   assert.deepEqual(f.removals.map(batch => batch.length), [500, 500, 2]);
@@ -357,17 +386,18 @@ test('aborting a nonresponsive RPC releases start without waiting for its respon
   const f = fixture([user(5, 'tail')], true, () => pending.promise);
   const source = createSessionSource(f.options);
   const loading = source.start();
-  await Promise.resolve();
+  await flush();
   source.dispose();
   await loading;
   assert.equal(f.calls[0].signal.aborted, true);
   assert.equal(source.getStatus().reason, 'disposed');
   pending.reject(new Error('late rejected transport'));
-  await Promise.resolve();
+  await flush();
 });
 
 test('a reconnect after a completed index restores independent cold pages', async () => {
-  const f = fixture([user(5, 'tail')], true, () => page([user(0, 'cold')], false));
+  const f = fixture([user(5, 'tail')], true, request => page(dense(0, request.throughSeq,
+    [user(0, 'cold'), user(5, 'tail'), ...(request.throughSeq >= 6 ? [assistant(6, 'reconnected')] : [])]), false));
   const source = createSessionSource(f.options);
   await source.start();
   assert.deepEqual(new Set(texts(f)), new Set(['tail', 'cold']));
@@ -384,25 +414,25 @@ test('a reconnect after a completed index restores independent cold pages', asyn
 test('a live subagent address revision aborts its old page before publishing new content', async () => {
   const pending = deferred();
   const f = fixture([user(5, 'tail')], true,
-    (_request, _signal, call) => call === 1 ? pending.promise : page([user(0, 'cold')]), {
+    (_request, _signal, call) => call === 1 ? pending.promise : page(dense(0, 5, [user(0, 'cold'), user(5, 'tail')])), {
       subagent: { address: { parentSessionId: 'parent', childSessionId: 'current', mode: 'unknown' } },
     });
   const source = createSessionSource(f.options);
   const loading = source.start();
-  await Promise.resolve();
+  await flush();
   f.session({ subagent: { address: { parentSessionId: 'parent', childSessionId: 'current', mode: 'continuable' } } });
   await loading;
   assert.equal(f.calls[0].signal.aborted, true);
   assert.equal(f.calls[1].request.address.mode, 'continuable');
   assert.deepEqual(new Set(texts(f)), new Set(['tail', 'cold']));
   pending.resolve(page([user(1, 'stale')]));
-  await Promise.resolve();
+  await flush();
   assert.equal(texts(f).includes('stale'), false);
   source.dispose();
 });
 
 test('document budget stops cold paging and stays partial across incremental updates', async () => {
-  const f = fixture([user(5, 'tail')], true, () => page([user(0, 'cold one'), assistant(1, 'cold two')], true));
+  const f = fixture([user(5, 'tail')], true, () => page(dense(0, 5, [user(0, 'cold one'), assistant(1, 'cold two'), user(5, 'tail')])));
   const source = createSessionSource({ ...f.options, maxDocs: 2 });
   await source.start();
   assert.deepEqual(texts(f), ['tail', 'cold one']);
@@ -443,6 +473,217 @@ test('document budget keeps messages atomic and refresh resets the partial state
   assert.equal(source.getStatus().complete, true);
   assert.equal(source.getStatus().partial, false);
   assert.equal(source.getStatus().errorCode, null);
+  source.dispose();
+});
+
+test('the authoritative tail is read even when the UI window says history is exhausted', async () => {
+  const f = fixture([assistant(2, 'visible tail')], false, () => page(dense(0, 4, [user(0, 'unmounted oldest'), assistant(2, 'visible tail'), assistant(4, 'unmounted latest')])));
+  f.projections(() => ({ ok: true, value: { kind: 'sequenced', asOfSeq: 4, values: {} } }));
+  const before = f.window();
+  const source = createSessionSource(f.options);
+  await source.start();
+  assert.deepEqual(new Set(texts(f)), new Set(['visible tail', 'unmounted oldest', 'unmounted latest']));
+  assert.equal(source.getStatus().throughSeq, 4);
+  assert.equal(source.getStatus().coverageThroughSeq, 4);
+  assert.equal(source.getStatus().eventsRead, 5);
+  assert.equal(source.getStatus().complete, true);
+  assert.strictEqual(f.window(), before);
+  assert.equal(f.eventListeners.size, 1);
+  source.dispose();
+  assert.equal(f.eventListeners.size, 0);
+});
+
+test('dense history proof rejects missing events and false exhaustion', async t => {
+  const cases = [
+    { name: 'page interior gap', pages: [page([frame(2), frame(4)], true)] },
+    { name: 'tail page ends below authority cursor', pages: [page(dense(0, 3), false)] },
+    { name: 'false hasMore false above zero', pages: [page(dense(2, 4), false)] },
+    { name: 'false hasMore true at zero', pages: [page(dense(0, 4), true)] },
+    { name: 'empty nonempty prefix', pages: [page([], false)] },
+    { name: 'duplicate event', pages: [page([frame(2), frame(3), frame(3), frame(4)], true)] },
+    { name: '跨页缺口', pages: [page(dense(3, 4), true), page(dense(0, 1), false)] },
+    { name: 'overlapping page', pages: [page(dense(3, 4), true), page(dense(0, 3), false)] },
+    { name: 'transient in durable page', pages: [page([frame(0), { ...frame(1), type: 'transient' }, frame(2), frame(3), frame(4)], false)] },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const f = fixture([assistant(4, 'known')], false, (_request, _signal, call) => scenario.pages[call - 1]);
+      const source = createSessionSource(f.options);
+      await source.start();
+      assert.equal(source.getStatus().complete, false);
+      assert.equal(source.getStatus().partial, true);
+      assert.equal(source.getStatus().loading, false);
+      assert.equal(source.getStatus().coverageThroughSeq, -1);
+      assert.equal(source.getStatus().errorCode, 'SOURCE_HISTORY_GAP');
+      assert.equal(f.calls.length, scenario.pages.length);
+      source.dispose();
+    });
+  }
+});
+
+test('exact empty authority proves an empty history through the page RPC', async () => {
+  const f = fixture([], false, () => page([], false));
+  const source = createSessionSource(f.options);
+  await source.start();
+  assert.equal(source.getStatus().throughSeq, -1);
+  assert.equal(source.getStatus().coverageThroughSeq, -1);
+  assert.equal(source.getStatus().eventsRead, 0);
+  assert.equal(source.getStatus().complete, true);
+  assert.equal(f.calls.length, 1);
+  assert.deepEqual(f.calls[0].request, { address: { kind: 'session', sessionId: 'current' }, throughSeq: -1, maxMessages: 500 });
+  source.dispose();
+});
+
+test('missing cached or malformed projection authority never falls back to complete', async t => {
+  const values = [
+    { ok: true, value: null },
+    { ok: true, value: { kind: 'migration-required', values: {} } },
+    { ok: true, value: { kind: 'cached', asOfSeq: 0, values: {} } },
+    { ok: true, value: { kind: 'sequenced', asOfSeq: 0.5, values: {} } },
+    { ok: true, value: { kind: 'sequenced', asOfSeq: Number.MAX_SAFE_INTEGER, values: {} } },
+    { ok: false, error: { code: 'gateway/denied', message: 'denied authority' } },
+    { invalid: true },
+  ];
+  for (const value of values) {
+    await t.test(JSON.stringify(value), async () => {
+      const f = fixture([user(0, 'known')]);
+      f.projections(() => value);
+      const source = createSessionSource(f.options);
+      await source.start();
+      assert.deepEqual(texts(f), ['known']);
+      assert.equal(source.getStatus().complete, false);
+      assert.equal(source.getStatus().partial, true);
+      assert.equal(f.calls.length, 0);
+      assert.ok(source.getStatus().error);
+      source.dispose();
+    });
+  }
+  const f = fixture([user(0, 'known')]);
+  delete f.remote.session.projections;
+  const source = createSessionSource(f.options);
+  await source.start();
+  assert.equal(source.getStatus().errorCode, 'SOURCE_UNSUPPORTED_HOST');
+  assert.equal(source.getStatus().complete, false);
+  assert.equal(f.calls.length, 0);
+  source.dispose();
+});
+
+test('subagent content remains behind the fully addressed page authorization', async () => {
+  const f = fixture([], false, () => ({ ok: false, error: { code: 'subagent/unauthorized', message: 'wrong parent' } }), {
+    subagent: { address: { parentSessionId: 'parent', childSessionId: 'current', mode: 'continuable' } },
+  });
+  f.projections(() => ({ ok: true, value: { kind: 'sequenced', asOfSeq: 2, values: {} } }));
+  const source = createSessionSource(f.options);
+  await source.start();
+  assert.deepEqual(f.calls[0].request.address, { kind: 'subagent', parentSessionId: 'parent', childSessionId: 'current', mode: 'continuable' });
+  assert.equal(source.getStatus().errorCode, 'subagent/unauthorized');
+  assert.equal(source.getStatus().complete, false);
+  assert.equal(f.docs.size, 0);
+  source.dispose();
+});
+
+test('a delayed durable settlement closes the live gap before complete is restored', async () => {
+  const f = fixture([user(0, 'initial')]);
+  const source = createSessionSource(f.options);
+  await source.start();
+  f.change({ kind: 'append', entries: [assistant(2, 'later')] });
+  assert.equal(source.getStatus().complete, false);
+  assert.equal(source.getStatus().partial, true);
+  assert.equal(source.getStatus().errorCode, 'SOURCE_LIVE_GAP');
+  assert.equal(source.getStatus().liveThroughSeq, 0);
+  f.change({ kind: 'settle-assistant', attemptId: 'delayed', entry: assistant(1, 'settled') });
+  assert.equal(source.getStatus().complete, true);
+  assert.equal(source.getStatus().partial, false);
+  assert.equal(source.getStatus().errorCode, null);
+  assert.equal(source.getStatus().liveThroughSeq, 2);
+  assert.deepEqual(new Set(texts(f)), new Set(['initial', 'later', 'settled']));
+  source.dispose();
+});
+
+test('cancelling a pending authority read cannot start paging or publish its late result', async () => {
+  const pending = deferred();
+  const f = fixture([user(0, 'known')]);
+  f.projections(() => pending.promise);
+  const source = createSessionSource(f.options);
+  const loading = source.start();
+  await flush();
+  source.dispose();
+  await loading;
+  assert.equal(f.projectionCalls[0].signal.aborted, true);
+  pending.resolve({ ok: true, value: { kind: 'sequenced', asOfSeq: 100, values: {} } });
+  await flush();
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.docs.size, 0);
+  assert.equal(source.getStatus().reason, 'disposed');
+});
+
+test('authoritative pages replace same-sequence stale window content and block later stale feed copies', async () => {
+  const f = fixture([user(0, 'stale-window-text')], false, () => page([user(0, 'authority-text')]));
+  const source = createSessionSource(f.options);
+  await source.start();
+  assert.deepEqual(texts(f), ['authority-text']);
+  assert.equal(source.getStatus().complete, true);
+  assert.equal(source.getStatus().count, 1);
+  assert.equal(source.getStatus().bytes, 'authority-text'.length * 2);
+  f.change({ kind: 'prepend', entries: [user(0, 'stale-window-text')] }, undefined, false);
+  f.change({ kind: 'settle-assistant', attemptId: 'stale', entry: assistant(0, 'stale-settlement-text') });
+  assert.deepEqual(texts(f), ['authority-text']);
+  assert.equal(source.getStatus().complete, true);
+  source.dispose();
+});
+
+test('authoritative nonsearchable records remove provisional documents without leaving stale parts', async t => {
+  const variants = [
+    frame(0),
+    user(0, 'injected', { kind: 'subagent' }),
+    { ...assistant(0, 'replacement'), event: { ...assistant(0, 'replacement').event, surfaceOp: { op: 'replace', startSeq: 0, endSeq: 0 } } },
+    event(0, 'assistant/message', { message: { content: [{ type: 'text', text: '' }] } }),
+  ];
+  for (const authoritative of variants) {
+    await t.test(authoritative.event.type + ':' + authoritative.event.data?.source?.kind, async () => {
+      const f = fixture([user(0, 'stale')], false, () => page([authoritative]));
+      const source = createSessionSource(f.options);
+      await source.start();
+      assert.equal(f.docs.size, 0);
+      assert.equal(source.getStatus().count, 0);
+      assert.equal(source.getStatus().messageCount, 0);
+      assert.equal(source.getStatus().bytes, 0);
+      assert.equal(source.getStatus().complete, true);
+      f.change({ kind: 'prepend', entries: [user(0, 'stale')] }, undefined, false);
+      assert.equal(f.docs.size, 0);
+      assert.ok(f.removals.flat().includes('0:0'));
+      source.dispose();
+    });
+  }
+});
+
+test('authority updates role and content parts atomically within the existing budget', async () => {
+  const provisional = assistant(0, 'old');
+  provisional.event.data.message.content.push({ type: 'reasoning', text: 'old reasoning' });
+  const f = fixture([provisional], false, () => page([user(0, 'new authority')]));
+  const source = createSessionSource({ ...f.options, maxDocs: 2, maxBytes: 50 });
+  await source.start();
+  assert.deepEqual([...f.docs.values()].map(doc => [doc.id, doc.role, doc.text]), [['0:0', 'user', 'new authority']]);
+  assert.ok(f.removals.flat().includes('0:1'));
+  assert.equal(source.getStatus().count, 1);
+  assert.equal(source.getStatus().messageCount, 1);
+  assert.equal(source.getStatus().bytes, 26);
+  assert.equal(source.getStatus().complete, true);
+  source.dispose();
+});
+
+test('oversized authority removes stale provisional text and reports partial', async () => {
+  const f = fixture([user(0, 'old')], false, () => page([user(0, 'authority exceeds budget')]));
+  const source = createSessionSource({ ...f.options, maxBytes: 10 });
+  await source.start();
+  assert.equal(f.docs.size, 0);
+  assert.equal(source.getStatus().count, 0);
+  assert.equal(source.getStatus().bytes, 0);
+  assert.equal(source.getStatus().errorCode, 'SOURCE_MEMORY_LIMIT');
+  assert.equal(source.getStatus().partial, true);
+  assert.equal(source.getStatus().complete, false);
+  f.change({ kind: 'prepend', entries: [user(0, 'old')] }, undefined, false);
+  assert.equal(f.docs.size, 0);
   source.dispose();
 });
 

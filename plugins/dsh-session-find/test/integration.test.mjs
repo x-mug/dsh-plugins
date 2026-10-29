@@ -106,20 +106,21 @@ test('generated client registers and disposes with installed Cordis 4.0.5', asyn
   ctx.provide('sidebarRight', { mounted });
   ctx.provide('sidebarRightTabs', { register() { types++; return () => types--; } });
   ctx.provide('shortcuts', { register(spec) {
-    assert.deepEqual(Array.from(spec.defaults['desktop:windows'].modifiers), ['primary']);
-    assert.deepEqual(Array.from(spec.defaults['web:windows'].modifiers), ['primary', 'alt']);
+    assert.equal(Object.keys(spec.defaults).length, 0);
     assert.equal(spec.resolve().status, 'handled');
     shortcuts++;
     return () => shortcuts--;
   } });
   ctx.provide('remote', {});
   ctx.provide('remote.session', {});
+  ctx.provide('workspaces', { list: { getSnapshot: () => ({ items: [], archivedSessionIds: [] }) } });
+  ctx.provide('uiWorkspace', {});
   const activation = ctx.plugin(plugin);
   await activation;
   assert.equal(registered.size, 2);
   assert.equal(shortcuts, 1);
   assert.equal(types, 1);
-  assert.equal(subscriptions, 1);
+  assert.equal(subscriptions, 2);
   await activation.dispose();
   assert.equal(registered.size, 0);
   assert.equal(shortcuts, 0);

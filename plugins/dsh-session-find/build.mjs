@@ -8,7 +8,7 @@ const strip = (source) => source.replace(/^import\s+[^;]+;\s*$/gm, '').replace(/
 const engine = await read('src/engine.js');
 const worker = await read('src/worker.js');
 const workerText = strip(engine) + '\n' + strip(worker);
-const modules = await Promise.all(['source', 'navigation', 'bridge', 'controller', 'ui'].map((name) => read(`src/${name}.js`)));
+const modules = await Promise.all(['source', 'navigation', 'bridge', 'controller', 'global-source', 'global-controller', 'keyboard', 'ui'].map((name) => read(`src/${name}.js`)));
 const css = await read('src/styles.css');
 const zh = JSON.parse(await read('locale/zh.json'));
 const en = JSON.parse(await read('locale/en.json'));

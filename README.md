@@ -5,7 +5,7 @@
 | 插件 | 版本 | 功能 | 说明 |
 |---|---|---|---|
 | `@local/dsh-code-location-links` | 1.1.0 | 修复 Windows `/C:/...` 文件链接、常见行列号后缀 | [使用说明](plugins/dsh-code-location-links/README.md) |
-| `@local/dsh-session-find` | 1.0.0 | 会话内查找、独立读取历史、命中导航 | [使用说明](plugins/dsh-session-find/README.md) · [性能记录](plugins/dsh-session-find/PERFORMANCE.md) |
+| `@local/dsh-session-find` | 1.1.0 | Worker 查找、历史完整性校验、命中核对、跨会话搜索、Ctrl+F | [使用说明](plugins/dsh-session-find/README.md) · [性能记录](plugins/dsh-session-find/PERFORMANCE.md) |
 
 ## 安装
 
@@ -20,7 +20,7 @@
 ```text
 plugins/
   dsh-code-location-links/  # 文件与行号链接
-  dsh-session-find/         # 当前会话内查找
+  dsh-session-find/         # 当前会话与跨会话查找
 scripts/verify.mjs          # 两个插件的构建与独立测试
 .github/workflows/ci.yml    # Linux / Windows 验证
 ```
@@ -33,7 +33,7 @@ scripts/verify.mjs          # 两个插件的构建与独立测试
 node scripts/verify.mjs
 ```
 
-默认不运行依赖本机 DSH 包的三项可选集成测试。要运行这些测试，设置 `DSH_INTEGRATION_VENDOR`（链接插件）和 `DSH_TEST_VENDOR_DIR`（会话查找），分别指向自己本机解包的依赖目录；具体格式见各插件说明。仓库不含第三方运行时源码、用户会话或凭据。
+默认不运行依赖本机 DSH 包的四项可选集成测试。要运行这些测试，设置 `DSH_INTEGRATION_VENDOR`（链接插件）和 `DSH_TEST_VENDOR_DIR`（会话查找），分别指向自己本机解包的依赖目录；具体格式见各插件说明。仓库不含第三方运行时源码、用户会话或凭据。
 
 打包前先运行验证，然后创建 `dist` 目录，在每个插件目录运行：
 
@@ -48,4 +48,4 @@ npm pack --ignore-scripts --pack-destination ../../dist
 - 两个插件使用 DSH 现有客户端服务和文件预览，未修改 DSH 安装文件。
 - 链接插件依赖 Cordis `internal/get`，会话查找的消息跳转依赖 rc.3 的 Chat DOM 锚点。升级 DSH 后需要重新验证。
 - 会话查找的性能记录来自合成语料的本机测试，不等同于浏览器端到端延迟，也不构成与其他编辑器的性能对标。
-- 自动测试和组件集成验证已运行；运行中 DSH 页面的实际点击与视觉行为仍需使用者验收。
+- 自动测试、真实 Cordis / 快捷键注册器集成和当前 DSH Web 页面的按键、搜索、高亮与跨会话跳转已验收。验证范围与限制见 [验证记录](docs/VALIDATION.md)。
