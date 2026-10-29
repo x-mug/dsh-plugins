@@ -9,11 +9,24 @@
 
 ## 安装
 
-1. 打开 [Releases](https://github.com/x-mug/dsh-plugins/releases)，下载需要的插件 `.tgz`，无需同时安装两个。
-2. 在 DSH 打开 **插件 → 添加插件 → 安装第三方插件**，输入下载文件的本机绝对路径。
-3. 按应用提示重启或重载。升级时先移除旧插件再安装新版。
+在 DSH 打开 **插件 → 添加插件 → 安装第三方插件**，填一段安装地址，不需要先下载文件。插件管理器接受 npm 包名、绝对本地路径、git 地址和 http(s) 压缩包直链。
 
-不要把仓库根目录当作一个插件安装。开发时可安装 `plugins/` 下具体插件的目录；通过压缩包安装的副本不会随源码目录变化而更新。
+本仓库是多插件仓库，一个地址只装一个插件，用 `#path:` 指向子目录：
+
+```text
+github:x-mug/dsh-plugins#v1.1.0&path:/plugins/dsh-session-find
+github:x-mug/dsh-plugins#v1.1.0&path:/plugins/dsh-code-location-links
+```
+
+也可以直接贴 [Releases](https://github.com/x-mug/dsh-plugins/releases) 里的压缩包直链，例如：
+
+```text
+https://github.com/x-mug/dsh-plugins/releases/download/v1.1.0/local-dsh-session-find-1.1.0.tgz
+```
+
+已经下载了文件，就填它的绝对路径。装好后按提示重启或重载；升级时先移除旧版本再安装。
+
+只写仓库根地址不行：根目录不是插件包，管理器会拒绝并回滚。通过压缩包或 git 安装的副本不会随源码目录变化而更新。
 
 ## 仓库结构
 

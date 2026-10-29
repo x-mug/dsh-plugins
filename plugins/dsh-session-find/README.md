@@ -29,13 +29,32 @@ DSH 0.2.1-rc.3 没有独立的“当前会话内查找”：
 
 ## 安装
 
-1. 从本仓库的 [Releases](https://github.com/x-mug/dsh-plugins/releases) 下载 `local-dsh-session-find-1.1.0.tgz`。
-2. 打开 Desktop 的 **插件 → 添加插件 → 安装第三方插件**，选择该 `.tgz`。
-3. 重启 / 重载应用，打开会话并在聊天或输入区按 `Ctrl+F` / `Cmd+F`，点击会话标题栏搜索按钮，或从命令面板运行“会话查找”。快捷键服务中的命令初始未绑定，可自行配置。
+在 Desktop 的 **插件 → 添加插件 → 安装第三方插件** 里填一段安装地址即可，不需要先手动下载。插件管理器接受 npm 包名、绝对本地路径、git 地址和 http(s) 压缩包直链四种写法。
 
-升级时先移除旧版本再安装新包；修改源码目录不会影响已安装副本。
+**A. 仓库地址（推荐，可从标签复现）**
 
-> 安装后是否加载成功以 Desktop 插件页显示的状态为准；本仓库的测试不代替运行中的应用验证。
+```text
+github:x-mug/dsh-plugins#v1.1.0&path:/plugins/dsh-session-find
+```
+
+去掉 `#v1.1.0&` 则跟随默认分支。也可以写完整 URL：
+`git+https://github.com/x-mug/dsh-plugins.git#v1.1.0&path:/plugins/dsh-session-find`。
+
+**B. Releases 压缩包直链（不下载文件，直接贴地址）**
+
+```text
+https://github.com/x-mug/dsh-plugins/releases/download/v1.1.0/local-dsh-session-find-1.1.0.tgz
+```
+
+**C. 已下载的压缩包或本机源码目录**
+
+填该文件的绝对路径，或插件目录的绝对路径（例如本仓库的 `plugins/dsh-session-find`）。
+
+安装后重载应用，打开会话并在聊天或输入区按 `Ctrl+F` / `Cmd+F`，点击会话标题栏搜索按钮，或从命令面板运行“会话查找”。快捷键服务中的命令初始未绑定，可自行配置。
+
+升级：先把旧版本移除，再用新版本地址安装。只写仓库根地址 `https://github.com/x-mug/dsh-plugins` 不行——根目录不是插件包，管理器会以“不是插件包”拒绝并回滚。文件链接插件用同样的写法，把路径换成 `plugins/dsh-code-location-links`。
+
+> 安装是否成功以 Desktop 插件页显示的状态为准；本仓库的测试不代替运行中的应用验证。
 
 ## 使用与边界
 
