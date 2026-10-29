@@ -12,6 +12,7 @@ window.__ModuleLoader__.load({
     const react = require('react')
     const h = react.createElement
     const NS = 'local-auto-review-cache-identity'
+    const dictionaries = { zh: {"meta":{"title":"Auto 审查缓存身份","description":"给内置 Auto 审查补稳定缓存身份，并可固定审查使用的模型。"},"title":"Auto 审查缓存身份","subtitle":"固定 Auto 审查使用的模型；留空则跟随主对话。","provider":"供应商","model":"模型","followMain":"跟随主对话","save":"保存","saved":"已保存","raw":"原始信息","readFailed":"读取失败：{message}","saveFailed":"保存失败：{message}"}, en: {"meta":{"title":"Auto review cache identity","description":"Give built-in Auto review calls a stable prompt-cache identity, and optionally run them on a fixed model."},"title":"Auto review cache identity","subtitle":"Pin the model Auto review uses; leave empty to follow the main conversation.","provider":"Provider","model":"Model","followMain":"Follow main conversation","save":"Save","saved":"Saved","raw":"Raw details","readFailed":"Read failed: {message}","saveFailed":"Save failed: {message}"} }
 
     // 完整打印原始数据，不截断。
     const pretty = (value) => {
@@ -152,7 +153,9 @@ window.__ModuleLoader__.load({
     const inject = ['slots', 'locale', 'remote', 'remote.session', 'remote.settings']
 
     function apply(ctx) {
-      ctx.effect(() => ctx.locale.register('@x-mug/dsh-auto-review-cache-identity', dictionaries));
+      ctx.effect(() => {
+      try { ctx.locale.register('@x-mug/dsh-auto-review-cache-identity', dictionaries) } catch {}
+    });
       const t = ctx.locale.bind('@x-mug/dsh-auto-review-cache-identity');
       ctx.slots.inject('settings.section', () => ctx.slots.register({
         name: 'settings.section',
