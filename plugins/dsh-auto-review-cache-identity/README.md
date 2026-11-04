@@ -79,12 +79,13 @@ bundle 默认值只有两项，其余都留给设置页或 profile 补丁：
 - **自动表单**：插件导出 `Config` 并调用 `ctx.settings.configure()`，设置页会为四个字段生成原生表单，改动写回 profile 的 `cordis.patch.yml`。适合改 `enabled` / `scope`。
 - **自定义分区「Auto 审查模型」**：供应商、模型两个下拉框，数据来自实时的模型目录；点「保存」写入同一份 profile 补丁。适合给审查换模型。
 
-两点行为需要知道：
+三点行为需要知道：
 
 1. 设置页保存只写 volatile 字段，**不会重新 apply 插件**。插件每次处理审查时现读配置，所以保存后立即生效、无需重启。
 2. 写入是 CAS：客户端用读到的 revision 提交，过期会被拒绝并提示保存失败，重新打开设置页再存即可。
+3. **本地 link 安装时，宿主的包要靠 `peerDependencies` 借。** 插件是按包名 `import('@deepseek-ai/schemastery')` 的；DSH 的本地目录安装走 `link:`，插件真实路径在 profile 之外、祖先目录没有 `node_modules`，宿主只对"插件 manifest 的 `peerDependencies` 里点过名"的包开转发通道（`dsh-app-boot` 的 `routeLinked`）。漏声明时 `Config` 静默变成 `undefined`——两个下拉永远显示「跟随主对话」、点保存报 `No configurable plugin entry`，而 profile 补丁里的值其实是对的。本插件已声明 `@deepseek-ai/schemastery` 与 `@deepseek-ai/dsh-llm`（都标 `optional`，宿主的包不在 registry 上）；挂载日志里的 `form=on|off` 是这条链路的判据。
 
-自定义分区下方有「设置原始信息」，展开是 `describe` 的原始返回，排查"保存了但没生效"时先看它。
+自定义分区下方有「设置原始信息」，展开是 `describe` 的原始返回，排查"保存了但没生效"时先看它。宿主没注册表单时，分区会直接把保存按钮置灰并提示原因，不再把失败伪装成「跟随主对话」。
 
 ## 只动网络元数据
 

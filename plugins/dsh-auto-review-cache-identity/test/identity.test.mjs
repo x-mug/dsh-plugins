@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import * as plugin from '../index.js';
 
 const { apply: pluginApply, _internal } = plugin;
@@ -408,4 +409,49 @@ test('disposing the plugin removes the listener', async () => {
   off.handles.forEach((handle) => handle.dispose());
   await readDecision(off.ctx.llm.stream(reviewCall('C:/work/a')));
   assert.equal(off.seen[0].sessionId, undefined);
+});
+
+// ---- 设置表单的 schema 来源 ----
+
+const { configSchema } = _internal;
+
+test('the manifest declares the host peers that unlock linked-install resolution', () => {
+  // 宿主按 peerDependencies 名单把安装里的包借给链接安装的插件。
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  for (const name of ['@deepseek-ai/schemastery', '@deepseek-ai/dsh-llm']) {
+    assert.equal(manifest.peerDependencies?.[name], '*');
+    // 声明成 optional，安装时不会去 registry 找宿主的包。
+    assert.equal(manifest.peerDependenciesMeta?.[name]?.optional, true);
+  }
+});
+
+test('configSchema builds the four volatile fields and never throws', async () => {
+  const calls = [];
+  const chain = (kind) => {
+    const field = {
+      kind,
+      default: () => field,
+      volatile: () => { field.volatileFlag = true; return field },
+      description: () => field
+    };
+    return field;
+  };
+  const z = {
+    boolean: () => chain('boolean'),
+    union: () => chain('union'),
+    string: () => chain('string'),
+    object: (fields) => {
+      calls.push(Object.keys(fields));
+      return { type: 'object', dict: fields };
+    }
+  };
+  const schema = await configSchema(async () => z);
+  assert.deepEqual(calls, [['enabled', 'scope', 'reviewProvider', 'reviewModel']]);
+  assert.equal(schema.type, 'object');
+  assert.equal(schema.dict.reviewModel.volatileFlag, true);
+});
+
+test('a schemastery the host does not lend leaves the plugin without a form', async () => {
+  assert.equal(await configSchema(async () => undefined), undefined);
+  assert.equal(await configSchema(async () => { throw new Error('no schemastery') }), undefined);
 });

@@ -22,23 +22,20 @@ export const name = 'auto-review-cache-identity'
 /** 没有硬依赖：agents / llm / settings 都按可选服务访问。 */
 export const inject = []
 
-/**
- * 设置页表单的字段定义。
- *
- * 声明了它，DSH 就会为这个插件生成原生配置表单，改动写回 profile 补丁。
- * 取不到 schemastery 时不导出，插件照常工作，只是没有表单。
- */
+/** 设置页表单的字段定义；取不到 schemastery 时不导出，插件照常工作，只是没有表单。 */
 export const Config = await configSchema()
 
-/**
- * 尽量拿到 schemastery 并声明字段。
- *
- * @returns 表单 schema，依赖缺失时为 undefined。
- */
-async function configSchema() {
+/** 取 schemastery；链接安装时宿主按 package.json 的 peerDependencies 把这份依赖借给插件。 */
+async function loadSchemastery() {
+  const { default: z } = await import('@deepseek-ai/schemastery')
+  return z
+}
+
+/** 声明设置页字段；load 可注入，测试不碰真实解析。 */
+async function configSchema(load = loadSchemastery) {
   try {
-    const { default: z } = await import('@deepseek-ai/schemastery')
-    return z.object({
+    const z = await load()
+    return z === undefined ? undefined : z.object({
       enabled: z.boolean().default(true).volatile().description('给 Auto 审查补稳定缓存身份'),
       scope: z.union(['session', 'cwd']).default('session').volatile().description('缓存身份按会话还是按工作目录'),
       reviewProvider: z.string().default('').volatile().description('Auto 审查固定使用的供应商，留空跟随主对话'),
@@ -296,7 +293,7 @@ export function apply(ctx, config) {
     ctx.logger?.warn(`[auto-review-cache-identity] unknown scope "${initial.scope}"; injection stays off`)
     return
   }
-  ctx.logger?.info(`[auto-review-cache-identity] mounted (enabled=${initial.enabled}, scope=${initial.scope}, review=${initial.review === undefined ? 'inherit' : `${initial.review.provider}/${initial.review.model}`})`)
+  ctx.logger?.info(`[auto-review-cache-identity] mounted (enabled=${initial.enabled}, scope=${initial.scope}, review=${initial.review === undefined ? 'inherit' : `${initial.review.provider}/${initial.review.model}`}, form=${Config === undefined ? 'off' : 'on'})`)
 
   let injected = 0
   let identityMisses = 0
@@ -376,4 +373,4 @@ export function apply(ctx, config) {
 }
 
 /** 纯函数导出，离线验证台直接用。 */
-export const _internal = { isReview, reviewText, reviewCwd, resolveIdentity, rewrite, plan, currentSessionId, routeOf, reviewRoute, settingsOf, SCOPES }
+export const _internal = { isReview, reviewText, reviewCwd, resolveIdentity, rewrite, plan, currentSessionId, routeOf, reviewRoute, settingsOf, SCOPES, loadSchemastery, configSchema }

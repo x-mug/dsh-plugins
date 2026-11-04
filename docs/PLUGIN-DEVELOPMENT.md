@@ -169,6 +169,25 @@ const declare = (scope) => scope.effect(() => scope.settings.configure({}, scope
 
 **验证办法**：不要靠"看起来对"。写一个离线脚本，用真的 schemastery 跑一遍 `Config['~standard'].validate(rawConfig)`，把每个字段的 `typeof` 打出来；引用字段会显示 `object`、`get()` 里才是值。再把设置页保存前后的行为各跑一次，确认第二次读到了新值。
 
+### 3.4 本地 link 安装时，宿主包必须在 `peerDependencies` 里点名
+
+**症状**：设置页里这个插件的下拉永远显示「跟随主对话」，点保存报 `No configurable plugin entry "..."`；但 profile 补丁里的值是对的。
+
+**根因**：`describe()` 只列 `runtime.Config` 非空的条目（`dsh-settings/lib/index.js:417`，取值在 `:538-541`），写入口也要求同一份 schema。插件用包名 `import('@deepseek-ai/schemastery')`；本地目录安装是 pnpm 的 `link:`（junction），插件的真实路径在 profile 之外，Node 的 ESM 解析按真实路径向上找 `node_modules`——什么也找不到，`import` 抛错、`Config` 静默变成 `undefined`。
+宿主留了转发通道：`dsh-app-boot` 的 `routeLinked` 对链接安装的插件改用安装里那份包，条件是插件 manifest 的 `peerDependencies` 点了名（`profile-resolution-bootstrap.js:460-514`，判据在 `:468` 的 `readPeerNames(directory).has(name)`）。没声明就落回 native 解析，也就是上面那条死路。
+
+**正确做法**：
+
+```json
+"peerDependencies": { "@deepseek-ai/schemastery": "*", "@deepseek-ai/dsh-llm": "*" },
+"peerDependenciesMeta": { "@deepseek-ai/schemastery": { "optional": true }, "@deepseek-ai/dsh-llm": { "optional": true } }
+```
+
+- 宿主的包不在 registry 上，必须标 `optional`，否则走安装流程时会去仓库找、直接失败。
+- 借进来的就是宿主自己那份；`isAgentLoopRequest` 这种模块级 WeakSet 判据才真正生效，借不到时退化成空集合、护栏静默失效（两个方向都安全）。
+- 判据：挂载日志加 `form=on|off`；`describe()` 里应出现与条目 id 同名的 ns，`user` 层带自己写过的字段。
+- ns 是**条目 id**（`entry.options.id`，`dsh-settings/lib/index.js:443`），不是包名也不是插件 `name` 导出；客户端里硬编码的那个常量要跟 patch 的 id 一起改。
+
 ## 4. `llm/stream` 拦截：同步、只派发一次、改写靠重新派发
 
 **症状**（三条都能把会话打废）：
@@ -317,6 +336,7 @@ const OPTION = { background: 'var(--dsw-alias-bg-l2, #1b1c1e)', color: 'var(--ds
 | 配置像没生效，但日志说配置到了 | `.volatile()` 字段是 `{ get() }` 引用，先解引用 |
 | 挂载时读对了，设置页改值后不变 | volatile-only 保存不重新 apply，必须每次现读 |
 | 去掉 `.volatile()` 后表单消失、update 报 `No volatile fields` | 表单只收 volatile 字段，不能去掉 |
+| 链接安装下拉不显示已保存的值、保存报 `No configurable plugin entry` | `Config` 用的宿主包没借到：在 `peerDependencies` 里点名 |
 | Auto 预设下所有工具调用被拒 | `llm/stream` 监听器返回了 Promise / 抛错；改成同步 + 全 catch + 纯透传 |
 | `next(newOptions)` 改不动请求 | `next` 在原始参数上闭包；改写要重新 `ctx.llm.stream(newOptions)` |
 | 后续监听器被跳过 | `next()` 只能调用一次 |

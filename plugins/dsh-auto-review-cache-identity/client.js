@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     const react = require('react')
     const h = react.createElement
     const NS = 'local-auto-review-cache-identity'
-    const dictionaries = { zh: {"meta":{"title":"Auto 审查缓存身份","description":"给内置 Auto 审查补稳定缓存身份，并可固定审查使用的模型。"},"title":"Auto 审查缓存身份","subtitle":"固定 Auto 审查使用的模型；留空则跟随主对话。","provider":"供应商","model":"模型","followMain":"跟随主对话","save":"保存","saved":"已保存","raw":"原始信息","readFailed":"读取失败：{message}","saveFailed":"保存失败：{message}"}, en: {"meta":{"title":"Auto review cache identity","description":"Give built-in Auto review calls a stable prompt-cache identity, and optionally run them on a fixed model."},"title":"Auto review cache identity","subtitle":"Pin the model Auto review uses; leave empty to follow the main conversation.","provider":"Provider","model":"Model","followMain":"Follow main conversation","save":"Save","saved":"Saved","raw":"Raw details","readFailed":"Read failed: {message}","saveFailed":"Save failed: {message}"} }
+    const dictionaries = { zh: {"meta":{"title":"Auto 审查缓存身份","description":"给内置 Auto 审查补稳定缓存身份，并可固定审查使用的模型。"},"title":"Auto 审查缓存身份","subtitle":"固定 Auto 审查使用的模型；留空则跟随主对话。","provider":"供应商","model":"模型","followMain":"跟随主对话","save":"保存","saved":"已保存","raw":"原始信息","readFailed":"读取失败：{message}","saveFailed":"保存失败：{message}","notRegistered":"宿主没有注册这个插件的配置表单，改动不会保存"}, en: {"meta":{"title":"Auto review cache identity","description":"Give built-in Auto review calls a stable prompt-cache identity, and optionally run them on a fixed model."},"title":"Auto review cache identity","subtitle":"Pin the model Auto review uses; leave empty to follow the main conversation.","provider":"Provider","model":"Model","followMain":"Follow main conversation","save":"Save","saved":"Saved","raw":"Raw details","readFailed":"Read failed: {message}","saveFailed":"Save failed: {message}","notRegistered":"The host registered no settings form for this plugin, so nothing saves"} }
 
     // 完整打印原始数据，不截断。
     const pretty = (value) => {
@@ -51,7 +51,7 @@ window.__ModuleLoader__.load({
       return (list ?? []).find(match)
     }
 
-    // 读当前表单值；用户层没有写入时回落 schema 默认值（空字符串 = 跟随主对话）。
+    // 读当前表单值：用户层优先，其次运行值；两处都没有就是跟随主对话。
     const currentValue = async (remote) => {
       const raw = await remote.settings.describe()
       const form = asForm(raw)
@@ -59,7 +59,8 @@ window.__ModuleLoader__.load({
         reviewProvider: typeof layer?.reviewProvider === 'string' ? layer.reviewProvider : '',
         reviewModel: typeof layer?.reviewModel === 'string' ? layer.reviewModel : ''
       })
-      return { value: of(form?.user), layers: raw === undefined ? 'undefined' : raw }
+      const effective = { ...form?.value, ...form?.user }
+      return { value: of(effective), registered: form !== undefined, layers: raw === undefined ? 'undefined' : raw }
     }
 
     const row = (label, control) => h('label', { style: { display: 'flex', gap: '12px', alignItems: 'center' } },
@@ -77,6 +78,7 @@ window.__ModuleLoader__.load({
       const [draft, setDraft] = react.useState({ reviewProvider: '', reviewModel: '' })
       const [status, setStatus] = react.useState('')
       const [layers, setLayers] = react.useState(null)
+      const [registered, setRegistered] = react.useState(true)
 
       react.useEffect(() => {
         let live = true
@@ -88,6 +90,7 @@ window.__ModuleLoader__.load({
             setGroups(groupsOf(catalog))
             setDraft(read.value)
             setLayers(read.layers)
+            setRegistered(read.registered)
             setStatus('')
           } catch (error) {
             if (live) setStatus(t('readFailed',{ message: error?.message ?? error }))
@@ -99,6 +102,8 @@ window.__ModuleLoader__.load({
 
       const models = groups.find((group) => group.id === draft.reviewProvider)?.models ?? []
       const save = async () => {
+        // 宿主没注册表单时写不进去，update 只会报错。
+        if (!registered) return
         try {
           // 写入是 CAS：expectedRevision 来自 describe，过期会被拒绝。
           await remote.settings.update(NS, draft, asForm(await remote.settings.describe())?.revision)
@@ -143,8 +148,13 @@ window.__ModuleLoader__.load({
         }, h('option', { value: '', style: OPTION }, t('followMain')),
           models.map((model) => h('option', { key: model.id, value: model.id, style: OPTION }, model.name ?? model.id)))),
         h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', paddingTop: '2px' } },
-          h('button', { type: 'button', style: S.button, onClick: save }, t('save')),
-          h('span', { style: S.status }, status)),
+          h('button', {
+            type: 'button',
+            style: registered ? S.button : { ...S.button, opacity: 0.5, cursor: 'not-allowed' },
+            disabled: !registered,
+            onClick: save
+          }, t('save')),
+          h('span', { style: S.status }, registered ? status : t('notRegistered'))),
         h('details', { style: S.details },
           h('summary', { style: S.summary }, t('raw')),
           h('pre', { style: S.pre }, pretty(layers))))
