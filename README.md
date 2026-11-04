@@ -1,15 +1,16 @@
 # DSH 插件仓库
 
-面向 DeepSeek Harness 的本地插件集合。一个仓库维护多个可独立安装的插件，当前兼容基线为 **DSH Desktop 0.2.1-rc.3 / Cordis 4.0.5**。
+面向 DeepSeek Harness 的插件合集。各插件由独立仓库维护，当前兼容基线为 **DSH Desktop 0.2.1-rc.3 / Cordis 4.0.5**。
 
 | 插件 | 版本 | 功能 | 说明 |
 |---|---|---|---|
-| `@x-mug/dsh-auto-review-cache-identity` | 1.0.0 | 给内置 Auto 审查补稳定缓存身份，可固定审查模型 | [源码仓库](https://github.com/x-mug/dsh-auto-review-cache-identity) · [使用说明](plugins/dsh-auto-review-cache-identity/README.md) |
+| `@x-mug/dsh-auto-review-cache-identity` | 1.1.1 | 给内置 Auto 审查补稳定缓存身份，可固定审查模型 | [源码仓库](https://github.com/x-mug/dsh-auto-review-cache-identity) · [使用说明](plugins/dsh-auto-review-cache-identity/README.md) |
 | `@x-mug/dsh-code-location-links` | 1.1.0 | 修复 Windows `/C:/...` 文件链接、常见行列号后缀 | [源码仓库](https://github.com/x-mug/dsh-code-location-links) · [使用说明](plugins/dsh-code-location-links/README.md) |
 | `@x-mug/dsh-session-find` | 1.1.0 | Worker 查找、历史完整性校验、命中核对、跨会话搜索、Ctrl+F | [源码仓库](https://github.com/x-mug/dsh-session-find) · [使用说明](plugins/dsh-session-find/README.md) · [性能记录](plugins/dsh-session-find/PERFORMANCE.md) |
 | `dsh-session-header` | 0.4.3 | 给 LLM 请求补会话标识头，原生发送时让位 | [源码仓库](https://github.com/x-mug/dsh-session-header) · [使用说明](plugins/dsh-session-header/README.md) |
 
 本仓库是合集索引：每个插件有自己的源码仓库，这里用 submodule 挂载，统一校验。**本仓库不能当作插件安装**，装的是各插件自己的仓库根地址。
+
 ## 安装
 
 在 DSH 打开 **插件 → 添加插件 → 安装第三方插件**，填插件仓库的安装地址，例如：
@@ -21,7 +22,7 @@ github:x-mug/dsh-session-header
 
 插件管理器接受 npm 包名、绝对本地路径、git 地址和 http(s) 压缩包直链。每个插件仓库的根目录就是插件包，所以不再需要 `#path:` 子目录写法。
 
-也可以直接贴对应插件 Releases 里的压缩包直链。
+如插件仓库提供 Release，也可以贴其中的压缩包直链。
 
 已经下载了文件，就填它的绝对路径。装好后按提示重启或重载；升级时先移除旧版本再安装。
 
@@ -55,9 +56,10 @@ git submodule update --init --recursive
 
 ## 开发和验证
 
-需要 **Node.js 24**，构建和核心测试不需要第三方依赖：
+需要 **Node.js 24** 和 **pnpm 11**。先安装 session-header 的锁定依赖，再运行四个插件的验证：
 
 ```sh
+pnpm --dir plugins/dsh-session-header install --frozen-lockfile --ignore-scripts
 node scripts/verify.mjs
 ```
 
@@ -71,7 +73,7 @@ node scripts/verify.mjs
 npm pack --ignore-scripts --pack-destination ../../dist
 ```
 
-安装包独立保留各自版本；仓库 Release 汇总当次发布的插件安装包与 SHA256。
+安装包独立保留各自版本；上述命令生成本地压缩包。
 
 ## 兼容性
 

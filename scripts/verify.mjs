@@ -12,9 +12,9 @@ function run(directory, args) {
 }
 
 run('plugins/dsh-session-find', ['build.mjs']);
-for (const plugin of ['dsh-auto-review-cache-identity', 'dsh-code-location-links', 'dsh-session-find']) {
+for (const plugin of ['dsh-auto-review-cache-identity', 'dsh-code-location-links', 'dsh-session-find', 'dsh-session-header']) {
   const directory = `plugins/${plugin}`;
-  const tests = (await readdir(path.join(root, directory, 'test'))).filter((name) => /\.test\.(cjs|mjs)$/.test(name)).sort().map((name) => `test/${name}`);
+  const tests = (await readdir(path.join(root, directory, 'test'))).filter((name) => /\.test\.(cjs|mjs|js)$/.test(name)).sort().map((name) => `test/${name}`);
   run(directory, ['--test', '--test-isolation=none', ...tests]);
   for (const script of ['client.js', 'index.js']) run(directory, ['--check', script]);
 }
