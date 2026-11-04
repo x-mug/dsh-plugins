@@ -67,13 +67,21 @@ node scripts/verify.mjs
 
 插件形态、bundle patch、配置读取、`llm/stream` 拦截、设置分区等通用注意事项见 [DSH 插件开发经验](docs/PLUGIN-DEVELOPMENT.md)。
 
-打包前先运行验证，然后创建 `dist` 目录，在每个插件目录运行：
+打包前先运行验证，再打包四个插件并校验内容和 SHA256：
 
 ```sh
-npm pack --ignore-scripts --pack-destination ../../dist
+mkdir -p dist
+for plugin in dsh-auto-review-cache-identity dsh-code-location-links dsh-session-find dsh-session-header; do
+  (cd "plugins/$plugin" && npm pack --ignore-scripts --pack-destination ../../dist)
+done
+node scripts/check-packages.mjs
 ```
 
-安装包独立保留各自版本；上述命令生成本地压缩包。
+## 日常维护与发布
+
+在对应插件仓库修改并推送；各插件的 CI 会在 Linux 和 Windows 验证并检查安装包。需要发布时更新该插件的 `package.json` 版本并推送到 `main`，发布工作流会验证、创建对应版本的 tag 和 Release，并附安装包与 SHA256；也可手动运行工作流发布当前未发布的版本。版本不变的提交不会触发新发布。
+
+本合集每天同步子模块到各仓库默认分支，也可以手动更新并提交子模块指针。
 
 ## 兼容性
 

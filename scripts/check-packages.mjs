@@ -6,12 +6,12 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const dist = path.join(root, 'dist');
+const dist = process.argv[2] ? path.resolve(process.argv[2]) : path.join(root, 'dist');
 const checksums = [];
-for (const plugin of ['dsh-code-location-links', 'dsh-session-find']) {
+for (const plugin of ['dsh-auto-review-cache-identity', 'dsh-code-location-links', 'dsh-session-find', 'dsh-session-header']) {
   const directory = path.join(root, 'plugins', plugin);
   const manifest = JSON.parse(await readFile(path.join(directory, 'package.json'), 'utf8'));
-  const filename = `local-${plugin}-${manifest.version}.tgz`;
+  const filename = `${manifest.name.replace(/^@/, '').replaceAll('/', '-')}-${manifest.version}.tgz`;
   const bytes = await readFile(path.join(dist, filename));
   const tar = gunzipSync(bytes);
   const names = new Set();

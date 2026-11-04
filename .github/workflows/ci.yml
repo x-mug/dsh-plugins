@@ -30,3 +30,11 @@ jobs:
         run: pnpm --dir plugins/dsh-session-header install --frozen-lockfile --ignore-scripts
       - name: Verify plugins
         run: node scripts/verify.mjs
+      - name: Pack and verify packages
+        shell: bash
+        run: |
+          mkdir -p dist
+          for plugin in dsh-auto-review-cache-identity dsh-code-location-links dsh-session-find dsh-session-header; do
+            (cd "plugins/$plugin" && npm pack --ignore-scripts --pack-destination ../../dist)
+          done
+          node scripts/check-packages.mjs
