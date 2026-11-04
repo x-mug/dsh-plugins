@@ -1,6 +1,0 @@
-- insert:
-    - id: local-auto-review-cache-identity
-      name: '@x-mug/dsh-auto-review-cache-identity'
-      config:
-        enabled: true
-        scope: session

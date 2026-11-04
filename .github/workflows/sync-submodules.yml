@@ -1,0 +1,35 @@
+name: Update submodules
+
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-submodules
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Point submodules at their default branch head
+        run: |
+          set -euo pipefail
+          git submodule update --remote --merge
+          if git diff --quiet; then
+            printf 'Submodules already at their newest commits.\n' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am 'chore: update plugin submodules'
+          git push
+          printf 'Submodules updated and pushed.\n' >> "$GITHUB_STEP_SUMMARY"

@@ -1,4 +1,0 @@
-- insert:
-    - id: local-code-location-links
-      name: '@x-mug/dsh-code-location-links'
-      config: {}

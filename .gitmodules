@@ -1,0 +1,12 @@
+[submodule "plugins/dsh-auto-review-cache-identity"]
+	path = plugins/dsh-auto-review-cache-identity
+	url = https://github.com/x-mug/dsh-auto-review-cache-identity.git
+[submodule "plugins/dsh-code-location-links"]
+	path = plugins/dsh-code-location-links
+	url = https://github.com/x-mug/dsh-code-location-links.git
+[submodule "plugins/dsh-session-find"]
+	path = plugins/dsh-session-find
+	url = https://github.com/x-mug/dsh-session-find.git
+[submodule "plugins/dsh-session-header"]
+	path = plugins/dsh-session-header
+	url = https://github.com/x-mug/dsh-session-header.git

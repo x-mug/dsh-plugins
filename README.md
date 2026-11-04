@@ -4,43 +4,53 @@
 
 | 插件 | 版本 | 功能 | 说明 |
 |---|---|---|---|
-| `@x-mug/dsh-auto-review-cache-identity` | 1.0.0 | 给内置 Auto 审查补稳定缓存身份，可固定审查模型 | [使用说明](plugins/dsh-auto-review-cache-identity/README.md) |
-| `@x-mug/dsh-code-location-links` | 1.1.0 | 修复 Windows `/C:/...` 文件链接、常见行列号后缀 | [使用说明](plugins/dsh-code-location-links/README.md) |
-| `@x-mug/dsh-session-find` | 1.1.0 | Worker 查找、历史完整性校验、命中核对、跨会话搜索、Ctrl+F | [使用说明](plugins/dsh-session-find/README.md) · [性能记录](plugins/dsh-session-find/PERFORMANCE.md) |
+| `@x-mug/dsh-auto-review-cache-identity` | 1.0.0 | 给内置 Auto 审查补稳定缓存身份，可固定审查模型 | [源码仓库](https://github.com/x-mug/dsh-auto-review-cache-identity) · [使用说明](plugins/dsh-auto-review-cache-identity/README.md) |
+| `@x-mug/dsh-code-location-links` | 1.1.0 | 修复 Windows `/C:/...` 文件链接、常见行列号后缀 | [源码仓库](https://github.com/x-mug/dsh-code-location-links) · [使用说明](plugins/dsh-code-location-links/README.md) |
+| `@x-mug/dsh-session-find` | 1.1.0 | Worker 查找、历史完整性校验、命中核对、跨会话搜索、Ctrl+F | [源码仓库](https://github.com/x-mug/dsh-session-find) · [使用说明](plugins/dsh-session-find/README.md) · [性能记录](plugins/dsh-session-find/PERFORMANCE.md) |
+| `dsh-session-header` | 0.4.3 | 给 LLM 请求补会话标识头，原生发送时让位 | [源码仓库](https://github.com/x-mug/dsh-session-header) · [使用说明](plugins/dsh-session-header/README.md) |
 
+本仓库是合集索引：每个插件有自己的源码仓库，这里用 submodule 挂载，统一校验。**本仓库不能当作插件安装**，装的是各插件自己的仓库根地址。
 ## 安装
 
-在 DSH 打开 **插件 → 添加插件 → 安装第三方插件**，填一段安装地址，不需要先下载文件。插件管理器接受 npm 包名、绝对本地路径、git 地址和 http(s) 压缩包直链。
-
-本仓库是多插件仓库，一个地址只装一个插件，用 `#path:` 指向子目录：
+在 DSH 打开 **插件 → 添加插件 → 安装第三方插件**，填插件仓库的安装地址，例如：
 
 ```text
-github:x-mug/dsh-plugins#v1.1.0&path:/plugins/dsh-session-find
-github:x-mug/dsh-plugins#v1.1.0&path:/plugins/dsh-code-location-links
+github:x-mug/dsh-session-find
+github:x-mug/dsh-session-header
 ```
 
-也可以直接贴 [Releases](https://github.com/x-mug/dsh-plugins/releases) 里的压缩包直链，例如：
+插件管理器接受 npm 包名、绝对本地路径、git 地址和 http(s) 压缩包直链。每个插件仓库的根目录就是插件包，所以不再需要 `#path:` 子目录写法。
 
-```text
-https://github.com/x-mug/dsh-plugins/releases/download/v1.1.0/local-dsh-session-find-1.1.0.tgz
-```
-
-版本 tag 只覆盖当时的插件集合；新增插件的 tag 尚未发布时，填仓库目录在本机的绝对路径安装，tag 发布后再改用上面的地址写法。
+也可以直接贴对应插件 Releases 里的压缩包直链。
 
 已经下载了文件，就填它的绝对路径。装好后按提示重启或重载；升级时先移除旧版本再安装。
 
-只写仓库根地址不行：根目录不是插件包，管理器会拒绝并回滚。通过压缩包或 git 安装的副本不会随源码目录变化而更新。
+只写本合集仓库的根地址不行：根目录不是插件包，管理器会拒绝并回滚。通过压缩包或 git 安装的副本不会随源码目录变化而更新。
 
 ## 仓库结构
 
 ```text
 plugins/
-  dsh-auto-review-cache-identity/  # Auto 审查缓存身份与审查模型
-  dsh-code-location-links/         # 文件与行号链接
-  dsh-session-find/                # 当前会话与跨会话查找
-scripts/verify.mjs                 # 插件的构建与独立测试
+  dsh-auto-review-cache-identity/  # submodule → x-mug/dsh-auto-review-cache-identity
+  dsh-code-location-links/         # submodule → x-mug/dsh-code-location-links
+  dsh-session-find/                # submodule → x-mug/dsh-session-find
+  dsh-session-header/              # submodule → x-mug/dsh-session-header
+scripts/verify.mjs                 # 逐个插件跑语法与独立测试
 docs/PLUGIN-DEVELOPMENT.md         # DSH 插件开发经验
-.github/workflows/ci.yml           # Linux / Windows 验证
+.github/workflows/ci.yml           # Linux / Windows 验证（递归 checkout）
+.github/workflows/sync-submodules.yml # 每天把 submodule 指到插件仓库最新提交
+```
+
+克隆时带上 `--recursive`，否则 `plugins/` 下是空目录：
+
+```sh
+git clone --recursive https://github.com/x-mug/dsh-plugins.git
+```
+
+已经普通克隆过的补一次：
+
+```sh
+git submodule update --init --recursive
 ```
 
 ## 开发和验证
