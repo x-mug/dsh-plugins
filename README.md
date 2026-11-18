@@ -4,7 +4,7 @@
 
 | 插件 | 版本 | 功能 | 说明 |
 |---|---|---|---|
-| `@x-mug/dsh-auto-review-cache-identity` | 1.2.2 | 为内置 Auto 审查选择模型，支持 DSH 0.2.2-rc.1 起的新版审查请求 | [源码仓库](https://github.com/x-mug/dsh-auto-review-cache-identity) · [使用说明](plugins/dsh-auto-review-cache-identity/README.md) |
+| `@x-mug/dsh-auto-review-cache-identity` | 1.2.3 | 固定 Auto 审查模型，核对最近 20 条发送记录并提示偏差 | [源码仓库](https://github.com/x-mug/dsh-auto-review-cache-identity) · [使用说明](plugins/dsh-auto-review-cache-identity/README.md) |
 | `@x-mug/dsh-code-location-links` | 1.1.0 | 修复 Windows `/C:/...` 文件链接、常见行列号后缀 | [源码仓库](https://github.com/x-mug/dsh-code-location-links) · [使用说明](plugins/dsh-code-location-links/README.md) |
 | `@x-mug/dsh-session-find` | 1.1.0 | Worker 查找、历史完整性校验、命中核对、跨会话搜索、Ctrl+F | [源码仓库](https://github.com/x-mug/dsh-session-find) · [使用说明](plugins/dsh-session-find/README.md) · [性能记录](plugins/dsh-session-find/PERFORMANCE.md) |
 | `dsh-session-header` | 0.4.3 | 给 LLM 请求补会话标识头，原生发送时让位 | [源码仓库](https://github.com/x-mug/dsh-session-header) · [使用说明](plugins/dsh-session-header/README.md) |
