@@ -1,8 +1,8 @@
 # DSH 插件开发经验
 
-把本地插件并入仓库的过程中踩到的坑，按"症状 → 根因 → 正确做法"记录。所有结论都来自本机 DSH Desktop 0.2.1-rc.3 / Cordis 4.0.5 的实测或只读源码核对，不是通用理论；升级 DSH 后需要重新验证。
+把本地插件并入仓库的过程中踩到的坑，按"症状 → 根因 → 正确做法"记录。早期示例基于 DSH Desktop 0.2.1-rc.3 / Cordis 4.0.5。新版审查的行为以插件说明为准。升级 DSH 后重新验证。
 
-本文基于 [`@x-mug/dsh-auto-review-cache-identity`](../plugins/dsh-auto-review-cache-identity/README.md) 的开发过程：宿主插件挂 `llm/stream` 补缓存身份，客户端插件在设置页加一页模型选择。
+本文基于 [`@x-mug/dsh-auto-review-cache-identity`](../plugins/dsh-auto-review-cache-identity/README.md) 的开发过程：宿主插件在 `llm/stream` 上为审查选择模型，客户端插件提供设置页。
 
 ## 0. 一个插件包的最小形态
 
@@ -231,13 +231,13 @@ scope.on('llm/stream', (options, next) => {
 - 守卫要用**幂等判据**（"目标字段已经在 → 放过"），不要用对象身份的 WeakSet 当唯一判据：嵌套派发每次都是新对象，身份判据会一路递归到 `RangeError`。
 - 插件出错必须等价于"没有插件"：`try/catch` + 纯透传 + 幂等守卫，三条缺一不可。
 
-**顺带一个死路**：不要试图用 `options.onPayload` 改请求体。pi-ai 三个适配器都支持它，但 `dsh-llm-pi-ai` 用白名单重建送给 pi-ai 的选项，`onPayload` 不在白名单里，从 `llm/stream` 上挂会被静默丢弃；monkey-patch `ctx.llm.stream` 或包 adapter 也改不到，参数对象是在绑定层内部重建的。要落到请求上，只能用绑定层认的字段（本例是 `sessionId` → `prompt_cache_key`）。
+**顺带一个死路**：不要试图用 `options.onPayload` 改请求体。pi-ai 三个适配器都支持它，但 `dsh-llm-pi-ai` 用白名单重建送给 pi-ai 的选项，`onPayload` 不在白名单里，从 `llm/stream` 上挂会被静默丢弃；monkey-patch `ctx.llm.stream` 或包 adapter 也改不到，参数对象是在绑定层内部重建的。要添加独立的缓存键，可在已确认的审核流中修改发送前的请求体。保留宿主原有的 `sessionId`。
 
 ## 5. 会话身份：直接读 DSH 的发起者作用域
 
 **症状**：在 `llm/stream` 监听器里 `options.sessionId`、`options.session`、`options.agent` 全是 `undefined`；想自己建一套 `tools/pre-execute` + `AsyncLocalStorage` 把会话带下去，又要处理注册顺序、HMR、漏挂。
 
-**根因**：`llm/stream` 的 options 是审查方 `deepFreeze` 出来的固定形状，里面没有会话身份。但 DSH 自己已经有一个发起者作用域：`dsh-agent` 用 `node:async_hooks` 的 AsyncLocalStorage 保存当前 `agent`，而审查发生在 `tools/pre-execute` 的监听器里、`ctx.llm.stream` 之前，和工具执行是同一条 await 链。
+**根因**：旧版 DSH 的审查请求不带会话 ID。DSH 0.2.2-rc.1 开始传入 `sessionId` 和 `purpose: "auto-review"`。两种版本都可以从 DSH 的发起者作用域取审查缓存分区所需的会话 ID。审查与工具执行在同一条异步调用链中。
 
 **正确做法**：
 
@@ -255,7 +255,7 @@ function currentSessionId(ctx) {
 - **必须包 `try`**：agents 服务 dispose 之后 `currentInitiator()` 会抛；这个异常要是漏到 `llm/stream` 外面，主对话那一侧会直接把整个 turn 打断。
 - **读的时机放在确认命中之后**：`currentInitiator()` 每次都是真读 AsyncLocalStorage，主对话、压缩、标题这些请求不该为它付钱。
 - **读不到就不注入，不要退回工作目录**：同一 cwd 下几十个互不相干的会话和子代理会塌成同一个身份，"稳定地错"比"没有"更危险，而且从日志和命中率上都看不出来。工作目录只能作为显式的 A/B 档。
-- **不要原样外发会话 id**：身份用 `"<namespace>:" + sha256(id)[:32]`，既避开和后端 64 字符上限的冲突，也不把原始会话 id 写进请求。
+- **保留宿主的会话 ID**。需要独立的缓存分区时，把发起者会话 ID 算成定长摘要，供缓存处理使用。支持 `prompt_cache_key` 的审核接口可在发送请求时写入该字段。
 
 ## 6. 客户端设置分区与 remote 调用
 
@@ -328,6 +328,17 @@ const OPTION = { background: 'var(--dsw-alias-bg-l2, #1b1c1e)', color: 'var(--ds
 4. **区分"临时诊断"和"仓库默认值"。** 绝对路径、`log: true`、`trace` 只在本机 profile 补丁里临时加，用完删掉；迁移/发布前检查 `cordis.patch.yml`，这些残留会跟着插件发出去，在别人机器上静默失败。
 5. **客户端放一个"原始信息"折叠面板。** 排查"保存了但没生效"时直接看 `describe()` 的 JSON，比翻宿主日志快。
 6. **离线验证台**：用迷你 cordis 复刻 `waterfall`/`next`/`inject` 的语义，用真的 `AsyncLocalStorage` 模拟发起者作用域，用假的 volatile 引用（带 `Symbol.for('cosmokit.volatile.write')`）模拟设置页原地写值。这样第 3～5 节的每条行为都能离线回归，不需要每次起 GUI。
+
+## 8. 发布后恢复远程安装
+
+所有 DSH 插件共用这套收尾流程。
+
+1. 联调前记下目标 profile、远程安装来源、当前版本、启用状态和需要保留的配置。
+2. 宿主允许两份独立安装时，保留远程正式版和本地开发版。联调时停用远程版，启用开发版，同一个 profile 只运行一份。一个 profile 的依赖按包名登记，同名的本地路径和远程地址共用一个安装位。这时优先在独立的开发 profile 加载源码，正式 profile 保留远程版。
+3. 需要在常用 profile 联调时，通过插件管理器切换来源，记录本地链接、安装文件替换和临时 profile 覆盖。发布后逐项撤掉开发来源，保留用户配置。
+4. 检查版本与文档，提交并推送插件仓库。需要发版时，确认远程 tag 或 Release 已可安装。合集使用子模块时，再更新子模块指针。
+5. 在改过的 profile 清理临时来源。卸载独立的本地开发版，回到常用 profile 启用原来的远程条目，再用插件管理器更新到目标远程版本。试验时覆盖过安装目录的，重新从远程安装，让包清单、锁定记录和实际文件一起更新。
+6. 核对 profile 的包来源、锁定的远程提交和实际安装版本。按宿主提示重新加载，确认配置仍在、只加载正式版，再做一次真实调用。审查模型的验收看网关实际收到的审查模型是否吻合当前设置。
 
 ## 速查
 

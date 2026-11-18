@@ -4,7 +4,7 @@
 
 | 插件 | 版本 | 功能 | 说明 |
 |---|---|---|---|
-| `@x-mug/dsh-auto-review-cache-identity` | 1.1.1 | 给内置 Auto 审查补稳定缓存身份，可固定审查模型 | [源码仓库](https://github.com/x-mug/dsh-auto-review-cache-identity) · [使用说明](plugins/dsh-auto-review-cache-identity/README.md) |
+| `@x-mug/dsh-auto-review-cache-identity` | 1.2.2 | 为内置 Auto 审查选择模型，支持 DSH 0.2.2-rc.1 起的新版审查请求 | [源码仓库](https://github.com/x-mug/dsh-auto-review-cache-identity) · [使用说明](plugins/dsh-auto-review-cache-identity/README.md) |
 | `@x-mug/dsh-code-location-links` | 1.1.0 | 修复 Windows `/C:/...` 文件链接、常见行列号后缀 | [源码仓库](https://github.com/x-mug/dsh-code-location-links) · [使用说明](plugins/dsh-code-location-links/README.md) |
 | `@x-mug/dsh-session-find` | 1.1.0 | Worker 查找、历史完整性校验、命中核对、跨会话搜索、Ctrl+F | [源码仓库](https://github.com/x-mug/dsh-session-find) · [使用说明](plugins/dsh-session-find/README.md) · [性能记录](plugins/dsh-session-find/PERFORMANCE.md) |
 | `dsh-session-header` | 0.4.3 | 给 LLM 请求补会话标识头，原生发送时让位 | [源码仓库](https://github.com/x-mug/dsh-session-header) · [使用说明](plugins/dsh-session-header/README.md) |
@@ -24,7 +24,7 @@ github:x-mug/dsh-session-header
 
 如插件仓库提供 Release，也可以贴其中的压缩包直链。
 
-已经下载了文件，就填它的绝对路径。装好后按提示重启或重载；升级时先移除旧版本再安装。
+已经下载了文件，就填它的绝对路径。装好后按提示重启或重载。升级用插件管理器更新已安装的远程包。
 
 只写本合集仓库的根地址不行：根目录不是插件包，管理器会拒绝并回滚。通过压缩包或 git 安装的副本不会随源码目录变化而更新。
 
@@ -81,6 +81,8 @@ node scripts/check-packages.mjs
 
 在对应插件仓库修改并推送；各插件的 CI 会在 Linux 和 Windows 验证并检查安装包。需要发布时更新该插件的 `package.json` 版本并推送到 `main`，发布工作流会验证、创建对应版本的 tag 和 Release，并附安装包与 SHA256；也可手动运行工作流发布当前未发布的版本。版本不变的提交不会触发新发布。
 
+用本地插件联调后，推送完成时切回远程安装，再核对已加载的版本和实际行为。参见 [发布后恢复远程安装](docs/PLUGIN-DEVELOPMENT.md#8-发布后恢复远程安装)。
+
 本合集每天同步子模块到各仓库默认分支，也可以手动更新并提交子模块指针。
 
 ## 兼容性
@@ -88,4 +90,4 @@ node scripts/check-packages.mjs
 - 插件都使用 DSH 现有客户端服务和既有能力，未修改 DSH 安装文件。
 - 链接插件依赖 Cordis `internal/get`，会话查找的消息跳转依赖 rc.3 的 Chat DOM 锚点，审查身份插件依赖 rc.3 的 `llm/stream` waterfall、`agents.currentInitiator()` 与设置页槽位。升级 DSH 后需要重新验证。
 - 会话查找的性能记录来自合成语料的本机测试，不等同于浏览器端到端延迟，也不构成与其他编辑器的性能对标。
-- 自动测试、真实 Cordis / 快捷键注册器集成和当前 DSH Web 页面的按键、搜索、高亮与跨会话跳转已验收；审查身份插件另有离线自动化验证（23 项）；设置分区、模型下拉、保存与热切换已在真实 DSH 桌面端验收：连续切换 `magpie-responses/codex/gpt-6.1-terra`、清空、`magpie/group/fasttranslate` 后，profile 补丁值与 trace 记录的实际改写路由逐一一致，切换在秒级生效且无需重启。链接插件与会话查找的验证范围见 [验证记录](docs/VALIDATION.md)，本次新增插件的验证范围见其[使用说明](plugins/dsh-auto-review-cache-identity/README.md)。
+- 自动测试、真实 Cordis / 快捷键注册器集成和当前 DSH Web 页面的按键、搜索、高亮与跨会话跳转已验收；审查模型插件的离线测试覆盖新版请求读取当前模型设置、热切换、跟随主对话和保留会话 ID。桌面端的路由以设置、插件记录和网关收到的审查模型为准。链接插件与会话查找的验证范围见 [验证记录](docs/VALIDATION.md)，本次新增插件的验证范围见其[使用说明](plugins/dsh-auto-review-cache-identity/README.md)。
