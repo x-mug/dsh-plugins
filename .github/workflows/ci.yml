@@ -28,6 +28,9 @@ jobs:
           version: '11.28.5'
       - name: Install session-header dependencies
         run: pnpm --dir plugins/dsh-session-header install --frozen-lockfile --ignore-scripts
+      - name: Install auto-review dependencies
+        working-directory: plugins/dsh-auto-review-cache-identity
+        run: npm install --ignore-scripts --no-audit --no-fund --no-package-lock
       - name: Verify plugins
         run: node scripts/verify.mjs
       - name: Pack and verify packages

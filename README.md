@@ -56,10 +56,11 @@ git submodule update --init --recursive
 
 ## 开发和验证
 
-需要 **Node.js 24** 和 **pnpm 11**。先安装 session-header 的锁定依赖，再运行四个插件的验证：
+使用 **Node.js 24** 和 **pnpm 11**。先安装会话头和自动审查插件的依赖，再验证四个插件。
 
 ```sh
 pnpm --dir plugins/dsh-session-header install --frozen-lockfile --ignore-scripts
+npm --prefix plugins/dsh-auto-review-cache-identity install --ignore-scripts --no-audit --no-fund --no-package-lock
 node scripts/verify.mjs
 ```
 
